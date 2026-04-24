@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Equinor Daily Intelligence Brief</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --eq-red: #C8102E;
+      --eq-dark: #1A1A2E;
+      --eq-blue: #0A3D62;
+      --eq-light-blue: #1E6FA5;
+      --risk-red: #A32D2D;
+      --risk-bg: #FCEBEB;
+      --opp-green: #3B6D11;
+      --opp-bg: #EAF3DE;
+      --neutral-gray: #6C757D;
+      --card-bg: #FFFFFF;
+      --page-bg: #F4F6F9;
+      --border: #DEE2E6;
+      --text: #212529;
+      --text-muted: #6C757D;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--page-bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      background: linear-gradient(135deg, var(--eq-dark) 0%, var(--eq-blue) 100%);
+      color: white;
+      padding: 18px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    }
+    .header-left { display: flex; align-items: center; gap: 14px; }
+    .eq-logo {
+      width: 40px; height: 40px;
+      background: var(--eq-red);
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 900; font-size: 18px; letter-spacing: -1px;
+      flex-shrink: 0;
+    }
+    header h1 { font-size: 1.35rem; font-weight: 700; line-height: 1.2; }
+    header .date { font-size: 0.85rem; opacity: 0.75; margin-top: 2px; }
+    .header-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+    select#historySelect {
+      padding: 8px 12px;
+      border: 1px solid rgba(255,255,255,0.3);
+      border-radius: 6px;
+      background: rgba(255,255,255,0.1);
+      color: white;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+    select#historySelect option { background: var(--eq-dark); }
+
+    button#runBtn {
+      background: var(--eq-red);
+      color: white;
+      border: none;
+      padding: 10px 22px;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex; align-items: center; gap: 8px;
+      transition: background 0.2s, transform 0.1s;
+    }
+    button#runBtn:hover { background: #a50d25; }
+    button#runBtn:active { transform: scale(0.97); }
+    button#runBtn:disabled { background: #888; cursor: not-allowed; }
+
+    .spinner {
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,0.4);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: none;
+    }
+    .spinner.active { display: block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Main layout ── */
+    main { max-width: 1200px; margin: 0 auto; padding: 28px 24px 60px; }
+
+    /* ── Alert banner ── */
+    .alert {
+      background: #FFF3CD;
+      border: 1px solid #FFC107;
+      border-radius: 8px;
+      padding: 14px 18px;
+      margin-bottom: 24px;
+      font-size: 0.9rem;
+      color: #664D03;
+    }
+    .alert strong { font-weight: 700; }
+    .alert.error { background: var(--risk-bg); border-color: var(--eq-red); color: var(--risk-red); }
+    .alert.success { background: var(--opp-bg); border-color: #52b788; color: var(--opp-green); }
+
+    /* ── Empty state ── */
+    #emptyState {
+      text-align: center;
+      padding: 80px 20px;
+    }
+    #emptyState .icon { font-size: 3rem; margin-bottom: 16px; }
+    #emptyState h2 { font-size: 1.4rem; color: var(--eq-blue); margin-bottom: 8px; }
+    #emptyState p { color: var(--text-muted); max-width: 420px; margin: 0 auto; }
+
+    /* ── Report content ── */
+    #reportContent { display: none; }
+    #reportContent.visible { display: block; }
+
+    /* ── Metrics row ── */
+    .metrics-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    @media (max-width: 768px) { .metrics-row { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 480px) { .metrics-row { grid-template-columns: 1fr; } }
+
+    .metric-card {
+      background: var(--card-bg);
+      border-radius: 10px;
+      padding: 18px 20px;
+      border: 1px solid var(--border);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+    .metric-card .label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+    .metric-card .value {
+      font-size: 1.7rem;
+      font-weight: 700;
+      line-height: 1;
+    }
+    .metric-card .sub { font-size: 0.82rem; color: var(--text-muted); margin-top: 4px; }
+
+    .sentiment-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 600;
+    }
+    .sentiment-badge.positive { background: var(--opp-bg); color: var(--opp-green); }
+    .sentiment-badge.negative { background: var(--risk-bg); color: var(--risk-red); }
+    .sentiment-badge.neutral { background: #F1F3F5; color: var(--neutral-gray); }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+
+    .trend-arrow { font-size: 1.4rem; }
+    .trend-rising { color: var(--opp-green); }
+    .trend-falling { color: var(--risk-red); }
+    .trend-stable { color: var(--neutral-gray); }
+
+    /* ── Section headings ── */
+    .section-title {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+      font-weight: 600;
+    }
+
+    /* ── Briefing panel ── */
+    .briefing-panel {
+      background: var(--card-bg);
+      border-radius: 10px;
+      padding: 28px 32px;
+      border: 1px solid var(--border);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+      margin-bottom: 20px;
+    }
+    .briefing-panel .headline {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--eq-blue);
+      line-height: 1.3;
+      margin-bottom: 20px;
+      border-left: 4px solid var(--eq-red);
+      padding-left: 14px;
+    }
+    .briefing-panel .situation {
+      font-size: 0.97rem;
+      line-height: 1.7;
+      color: var(--text);
+      margin-bottom: 18px;
+    }
+    .equinor-impact-box {
+      background: #EEF4FB;
+      border: 1px solid #C5D9EE;
+      border-radius: 8px;
+      padding: 16px 20px;
+    }
+    .equinor-impact-box .impact-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--eq-light-blue);
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .equinor-impact-box p { font-size: 0.95rem; line-height: 1.65; }
+
+    /* ── Two-column insights ── */
+    .insights-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    @media (max-width: 640px) { .insights-row { grid-template-columns: 1fr; } }
+
+    .insight-card {
+      background: var(--card-bg);
+      border-radius: 10px;
+      padding: 20px 22px;
+      border: 1px solid var(--border);
+      border-left-width: 4px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+    .insight-card.risk { border-left-color: var(--risk-red); }
+    .insight-card.opportunity { border-left-color: var(--opp-green); }
+    .insight-card .ic-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .insight-card.risk .ic-label { color: var(--risk-red); }
+    .insight-card.opportunity .ic-label { color: var(--opp-green); }
+    .insight-card .ic-text { font-size: 0.93rem; line-height: 1.6; }
+
+    /* ── Actions ── */
+    .actions-card {
+      background: var(--card-bg);
+      border-radius: 10px;
+      padding: 20px 24px;
+      border: 1px solid var(--border);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+      margin-bottom: 20px;
+    }
+    .actions-card ul { list-style: none; padding: 0; }
+    .actions-card li {
+      padding: 9px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.92rem;
+      display: flex; align-items: flex-start; gap: 10px;
+      line-height: 1.5;
+    }
+    .actions-card li:last-child { border-bottom: none; }
+    .actions-card li::before {
+      content: "→";
+      color: var(--eq-red);
+      font-weight: 700;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    /* ── Key themes ── */
+    .themes-card {
+      background: var(--card-bg);
+      border-radius: 10px;
+      padding: 18px 24px;
+      border: 1px solid var(--border);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+      margin-bottom: 24px;
+    }
+    .theme-pills { display: flex; flex-wrap: wrap; gap: 8px; }
+    .theme-pill {
+      background: #EEF4FB;
+      color: var(--eq-blue);
+      border: 1px solid #C5D9EE;
+      border-radius: 20px;
+      padding: 5px 14px;
+      font-size: 0.82rem;
+      font-weight: 500;
+    }
+
+    /* ── Articles ── */
+    .articles-header {
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 12px;
+      margin-bottom: 14px;
+    }
+    .filter-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+    .filter-btn {
+      padding: 6px 14px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: white;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.15s;
+      font-weight: 500;
+    }
+    .filter-btn.active {
+      background: var(--eq-blue);
+      color: white;
+      border-color: var(--eq-blue);
+    }
+
+    #articlesList { display: flex; flex-direction: column; gap: 12px; }
+
+    .article-card {
+      background: var(--card-bg);
+      border-radius: 10px;
+      padding: 18px 22px;
+      border: 1px solid var(--border);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+      transition: box-shadow 0.2s;
+    }
+    .article-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    .article-card.hidden { display: none; }
+
+    .article-top {
+      display: flex; align-items: flex-start; gap: 10px; margin-bottom: 10px;
+    }
+    .sentiment-dot {
+      width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-top: 5px;
+    }
+    .sentiment-dot.positive { background: var(--opp-green); }
+    .sentiment-dot.negative { background: var(--risk-red); }
+    .sentiment-dot.neutral { background: var(--neutral-gray); }
+
+    .article-title {
+      font-size: 0.97rem;
+      font-weight: 600;
+      color: var(--eq-blue);
+      text-decoration: none;
+      line-height: 1.4;
+    }
+    .article-title:hover { text-decoration: underline; }
+
+    .article-summary { font-size: 0.88rem; color: var(--text); line-height: 1.65; margin-bottom: 10px; }
+
+    .article-meta {
+      display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+      font-size: 0.78rem; color: var(--text-muted);
+    }
+    .relevance-badge {
+      display: inline-block;
+      padding: 2px 9px; border-radius: 12px; font-size: 0.73rem; font-weight: 600;
+    }
+    .relevance-badge.high { background: #EEF4FB; color: var(--eq-light-blue); }
+    .relevance-badge.medium { background: #FFF8E1; color: #B07D00; }
+    .relevance-badge.low { background: #F1F3F5; color: var(--neutral-gray); }
+
+    .article-reason { font-size: 0.8rem; color: var(--text-muted); margin: 6px 0; font-style: italic; }
+
+    .article-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .tag-pill {
+      background: #F1F3F5;
+      color: var(--text-muted);
+      border-radius: 12px;
+      padding: 2px 9px;
+      font-size: 0.73rem;
+    }
+
+    /* ── Footer ── */
+    footer {
+      text-align: center;
+      padding: 24px;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      border-top: 1px solid var(--border);
+      margin-top: 40px;
+    }
+
+    /* ── Progress bar ── */
+    #progressBar {
+      position: fixed; top: 0; left: 0;
+      height: 3px; width: 0%;
+      background: var(--eq-red);
+      transition: width 0.3s ease;
+      z-index: 9999;
+    }
+
+    /* ── Admin modal ── */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.55);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 1000;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.2s;
+    }
+    .modal-overlay.open { opacity: 1; pointer-events: all; }
+
+    .modal {
+      background: white;
+      border-radius: 12px;
+      padding: 32px 36px;
+      width: 100%;
+      max-width: 420px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+      transform: translateY(12px);
+      transition: transform 0.2s;
+    }
+    .modal-overlay.open .modal { transform: translateY(0); }
+
+    .modal h2 { font-size: 1.15rem; color: var(--eq-blue); margin-bottom: 6px; }
+    .modal p { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 20px; line-height: 1.5; }
+
+    .modal label { display: block; font-size: 0.82rem; font-weight: 600; margin-bottom: 6px; }
+    .modal input[type="password"] {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      font-size: 0.95rem;
+      margin-bottom: 6px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .modal input[type="password"]:focus { border-color: var(--eq-light-blue); }
+
+    #modalError {
+      font-size: 0.8rem;
+      color: var(--risk-red);
+      min-height: 18px;
+      margin-bottom: 16px;
+    }
+
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+    .modal-actions button {
+      padding: 9px 20px; border-radius: 7px; font-size: 0.88rem; font-weight: 600;
+      cursor: pointer; border: none;
+    }
+    #modalCancel { background: #F1F3F5; color: var(--text); }
+    #modalCancel:hover { background: #DEE2E6; }
+    #modalConfirm { background: var(--eq-red); color: white; display: flex; align-items: center; gap: 8px; }
+    #modalConfirm:hover { background: #a50d25; }
+    #modalConfirm:disabled { background: #888; cursor: not-allowed; }
+
+    .modal-note {
+      margin-top: 16px;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      border-top: 1px solid var(--border);
+      padding-top: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div id="progressBar"></div>
+
+  <!-- Admin password modal -->
+  <div class="modal-overlay" id="adminModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal">
+      <h2 id="modalTitle">Admin: Run Today's Analysis</h2>
+      <p>This triggers a live news fetch + Claude AI analysis (~1–2 minutes). Enter the admin password to continue.</p>
+      <label for="adminPwdInput">Admin password</label>
+      <input type="password" id="adminPwdInput" placeholder="Enter password" autocomplete="current-password" />
+      <div id="modalError"></div>
+      <div class="modal-actions">
+        <button id="modalCancel" onclick="closeModal()">Cancel</button>
+        <button id="modalConfirm" onclick="submitAnalysis()">
+          <span class="spinner" id="modalSpinner"></span>
+          <span id="modalBtnText">Run Analysis</span>
+        </button>
+      </div>
+      <div class="modal-note">Reports are shared publicly — all visitors see the same daily brief.</div>
+    </div>
+  </div>
+
+  <header>
+    <div class="header-left">
+      <div class="eq-logo">EQ</div>
+      <div>
+        <h1>Equinor Daily Intelligence Brief</h1>
+        <div class="date" id="headerDate">{{ today }}</div>
+      </div>
+    </div>
+    <div class="header-right">
+      {% if report_dates %}
+      <select id="historySelect" onchange="loadHistoricReport(this.value)">
+        <option value="">— Load previous report —</option>
+        {% for d in report_dates %}
+        <option value="{{ d }}" {% if report and report.date == d %}selected{% endif %}>{{ d }}</option>
+        {% endfor %}
+      </select>
+      {% endif %}
+      {% if admin_enabled %}
+      <button id="runBtn" onclick="openModal()">
+        <span class="spinner" id="spinner"></span>
+        <span id="runBtnText">Run Today's Analysis</span>
+      </button>
+      {% endif %}
+    </div>
+  </header>
+
+  <main>
+    <div id="alertBanner" style="display:none" class="alert"></div>
+
+    <div id="emptyState" {% if report %}style="display:none"{% endif %}>
+      <div class="icon">📡</div>
+      <h2>Today's briefing is being prepared</h2>
+      <p>Check back soon — the daily intelligence report is generated automatically each weekday morning.</p>
+    </div>
+
+    <div id="reportContent" class="{% if report %}visible{% endif %}">
+      <!-- Metrics row -->
+      <div class="metrics-row">
+        <div class="metric-card">
+          <div class="label">Articles Analyzed</div>
+          <div class="value" id="metricArticles">{{ report.articles_count if report else '—' }}</div>
+          <div class="sub">from NewsAPI</div>
+        </div>
+        <div class="metric-card">
+          <div class="label">Market Sentiment</div>
+          <div id="metricSentiment">
+            {% if report %}
+            <span class="sentiment-badge {{ report.market_sentiment }}">
+              <span class="dot"></span>{{ report.market_sentiment | capitalize }}
+            </span>
+            {% else %}—{% endif %}
+          </div>
+        </div>
+        <div class="metric-card">
+          <div class="label">Equinor-Relevant</div>
+          <div class="value" id="metricRelevant">{{ report.relevant_count if report else '—' }}</div>
+          <div class="sub">high + medium relevance</div>
+        </div>
+        <div class="metric-card">
+          <div class="label">Oil Price Trend</div>
+          <div id="metricTrend">
+            {% if report %}
+            {% set trend = report.oil_price_trend %}
+            <span class="trend-arrow trend-{{ trend }}">
+              {% if trend == 'rising' %}↑{% elif trend == 'falling' %}↓{% else %}→{% endif %}
+            </span>
+            <span style="font-size:0.9rem;font-weight:600">{{ trend | capitalize }}</span>
+            {% else %}—{% endif %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Briefing panel -->
+      <div class="briefing-panel">
+        <div class="headline" id="briefHeadline">{{ report.headline if report else '' }}</div>
+        <p class="situation" id="briefSituation">{{ report.situation_summary if report else '' }}</p>
+        <div class="equinor-impact-box">
+          <div class="impact-label">Equinor Impact</div>
+          <p id="briefImpact">{{ report.equinor_impact if report else '' }}</p>
+        </div>
+      </div>
+
+      <!-- Risk / Opportunity -->
+      <div class="insights-row">
+        <div class="insight-card risk">
+          <div class="ic-label">Top Risk</div>
+          <div class="ic-text" id="topRisk">{{ report.top_risk if report else '' }}</div>
+        </div>
+        <div class="insight-card opportunity">
+          <div class="ic-label">Top Opportunity</div>
+          <div class="ic-text" id="topOpportunity">{{ report.top_opportunity if report else '' }}</div>
+        </div>
+      </div>
+
+      <!-- Recommended actions -->
+      <div class="actions-card">
+        <div class="section-title">Recommended Actions for Comms Team</div>
+        <ul id="actionsList">
+          {% if report %}
+          {% for action in report.recommended_actions %}
+          <li>{{ action }}</li>
+          {% endfor %}
+          {% endif %}
+        </ul>
+      </div>
+
+      <!-- Key themes -->
+      <div class="themes-card">
+        <div class="section-title">Key Themes</div>
+        <div class="theme-pills" id="themesPills">
+          {% if report %}
+          {% for theme in report.key_themes %}
+          <span class="theme-pill">{{ theme }}</span>
+          {% endfor %}
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Articles -->
+      <div class="articles-header">
+        <div class="section-title" style="margin-bottom:0">News Articles</div>
+        <div class="filter-btns">
+          <button class="filter-btn active" onclick="filterArticles('all', this)">All</button>
+          <button class="filter-btn" onclick="filterArticles('high', this)">High Relevance</button>
+          <button class="filter-btn" onclick="filterArticles('positive', this)">Positive</button>
+          <button class="filter-btn" onclick="filterArticles('negative', this)">Negative</button>
+        </div>
+      </div>
+
+      <div id="articlesList">
+        {% if report %}
+        {% for article in report.articles %}
+        <div class="article-card"
+             data-relevance="{{ article.equinor_relevance }}"
+             data-sentiment="{{ article.sentiment }}">
+          <div class="article-top">
+            <span class="sentiment-dot {{ article.sentiment }}"></span>
+            <a class="article-title" href="{{ article.url }}" target="_blank" rel="noopener">
+              {{ article.title }}
+            </a>
+          </div>
+          <p class="article-summary">{{ article.summary }}</p>
+          <p class="article-reason">{{ article.relevance_reason }}</p>
+          <div class="article-meta">
+            <span class="relevance-badge {{ article.equinor_relevance }}">
+              {{ article.equinor_relevance | upper }} relevance
+            </span>
+            <span>{{ article.source }}</span>
+            <span>{{ article.publishedAt[:10] if article.publishedAt else '' }}</span>
+          </div>
+          {% if article.tags %}
+          <div class="article-tags">
+            {% for tag in article.tags %}
+            <span class="tag-pill">{{ tag }}</span>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+        {% endif %}
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    Powered by Claude AI + NewsAPI &nbsp;·&nbsp;
+    <span id="lastUpdated">
+      {% if report %}Last updated: {{ report.date }}{% endif %}
+    </span>
+  </footer>
+
+  <script>
+    // ── Modal ──
+    function openModal() {
+      document.getElementById('adminModal').classList.add('open');
+      document.getElementById('adminPwdInput').focus();
+      document.getElementById('modalError').textContent = '';
+      document.getElementById('adminPwdInput').value = '';
+    }
+
+    function closeModal() {
+      document.getElementById('adminModal').classList.remove('open');
+    }
+
+    document.getElementById('adminModal').addEventListener('click', function(e) {
+      if (e.target === this) closeModal();
+    });
+
+    document.getElementById('adminPwdInput').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') submitAnalysis();
+      if (e.key === 'Escape') closeModal();
+    });
+
+    // ── Analysis ──
+    async function submitAnalysis() {
+      const password = document.getElementById('adminPwdInput').value.trim();
+      if (!password) {
+        document.getElementById('modalError').textContent = 'Please enter the admin password.';
+        return;
+      }
+
+      const confirmBtn = document.getElementById('modalConfirm');
+      const modalSpinner = document.getElementById('modalSpinner');
+      const modalBtnText = document.getElementById('modalBtnText');
+
+      confirmBtn.disabled = true;
+      modalSpinner.classList.add('active');
+      modalBtnText.textContent = 'Running...';
+      document.getElementById('modalError').textContent = '';
+      setProgress(15);
+
+      try {
+        setProgress(40);
+        const res = await fetch('/analyze', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Admin-Password': password,
+          },
+          body: JSON.stringify({ admin_password: password }),
+        });
+        setProgress(85);
+        const data = await res.json();
+
+        if (res.status === 401) {
+          document.getElementById('modalError').textContent = 'Incorrect password.';
+          setProgress(0);
+          return;
+        }
+        if (!res.ok || data.error) {
+          throw new Error(data.error || 'Analysis failed.');
+        }
+
+        setProgress(100);
+        closeModal();
+        renderReport(data.report);
+        showAlert('Analysis complete! Report generated for ' + data.report.date, 'success');
+
+      } catch (err) {
+        setProgress(0);
+        closeModal();
+        showAlert('Error: ' + err.message);
+      } finally {
+        confirmBtn.disabled = false;
+        modalSpinner.classList.remove('active');
+        modalBtnText.textContent = 'Run Analysis';
+        setTimeout(() => setProgress(0), 600);
+      }
+    }
+
+    // ── Utilities ──
+    function setProgress(pct) {
+      document.getElementById('progressBar').style.width = pct + '%';
+    }
+
+    function showAlert(msg, type='error') {
+      const el = document.getElementById('alertBanner');
+      el.textContent = msg;
+      el.className = 'alert ' + type;
+      el.style.display = 'block';
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function hideAlert() {
+      document.getElementById('alertBanner').style.display = 'none';
+    }
+
+    async function loadHistoricReport(date) {
+      if (!date) return;
+      hideAlert();
+      setProgress(30);
+      try {
+        const res = await fetch('/report/' + date);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to load report.');
+        setProgress(100);
+        renderReport(data);
+      } catch (err) {
+        showAlert('Error: ' + err.message);
+      } finally {
+        setTimeout(() => setProgress(0), 600);
+      }
+    }
+
+    function renderReport(r) {
+      document.getElementById('metricArticles').textContent = r.articles_count ?? r.articles?.length ?? '—';
+      document.getElementById('metricRelevant').textContent = r.relevant_count ?? '—';
+
+      const s = r.market_sentiment || 'neutral';
+      document.getElementById('metricSentiment').innerHTML =
+        `<span class="sentiment-badge ${s}"><span class="dot"></span>${cap(s)}</span>`;
+
+      const t = r.oil_price_trend || 'stable';
+      const arrow = t === 'rising' ? '↑' : t === 'falling' ? '↓' : '→';
+      document.getElementById('metricTrend').innerHTML =
+        `<span class="trend-arrow trend-${t}">${arrow}</span> <span style="font-size:.9rem;font-weight:600">${cap(t)}</span>`;
+
+      document.getElementById('briefHeadline').textContent = r.headline || '';
+      document.getElementById('briefSituation').textContent = r.situation_summary || '';
+      document.getElementById('briefImpact').textContent = r.equinor_impact || '';
+      document.getElementById('topRisk').textContent = r.top_risk || '';
+      document.getElementById('topOpportunity').textContent = r.top_opportunity || '';
+
+      document.getElementById('actionsList').innerHTML =
+        (r.recommended_actions || []).map(a => `<li>${esc(a)}</li>`).join('');
+
+      document.getElementById('themesPills').innerHTML =
+        (r.key_themes || []).map(t => `<span class="theme-pill">${esc(t)}</span>`).join('');
+
+      document.getElementById('articlesList').innerHTML = (r.articles || []).map(a => `
+        <div class="article-card" data-relevance="${a.equinor_relevance}" data-sentiment="${a.sentiment}">
+          <div class="article-top">
+            <span class="sentiment-dot ${a.sentiment}"></span>
+            <a class="article-title" href="${esc(a.url)}" target="_blank" rel="noopener">${esc(a.title)}</a>
+          </div>
+          <p class="article-summary">${esc(a.summary)}</p>
+          <p class="article-reason">${esc(a.relevance_reason)}</p>
+          <div class="article-meta">
+            <span class="relevance-badge ${a.equinor_relevance}">${(a.equinor_relevance||'').toUpperCase()} relevance</span>
+            <span>${esc(a.source)}</span>
+            <span>${(a.publishedAt||'').substring(0,10)}</span>
+          </div>
+          ${(a.tags||[]).length ? `<div class="article-tags">${a.tags.map(t=>`<span class="tag-pill">${esc(t)}</span>`).join('')}</div>` : ''}
+        </div>`).join('');
+
+      document.getElementById('lastUpdated').textContent = 'Last updated: ' + (r.date || '');
+      document.getElementById('emptyState').style.display = 'none';
+      document.getElementById('reportContent').classList.add('visible');
+      filterArticles('all', document.querySelector('.filter-btn'));
+    }
+
+    function filterArticles(filter, btn) {
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+      document.querySelectorAll('.article-card').forEach(card => {
+        const rel = card.dataset.relevance;
+        const sent = card.dataset.sentiment;
+        let show = true;
+        if (filter === 'high') show = rel === 'high';
+        else if (filter === 'positive') show = sent === 'positive';
+        else if (filter === 'negative') show = sent === 'negative';
+        card.classList.toggle('hidden', !show);
+      });
+    }
+
+    function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
+
+    function esc(s) {
+      if (!s) return '';
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+  </script>
+</body>
+</html>
