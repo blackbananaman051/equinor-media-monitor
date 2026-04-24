@@ -1,12 +1,11 @@
 import os
 import requests
-from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
 load_dotenv()
 
-NEWS_API_KEY = os.getenv("NEWS_API_KEY")
-NEWS_API_BASE = "https://newsapi.org/v2/everything"
+GNEWS_API_KEY = os.getenv("GNEWS_API_KEY")
+GNEWS_BASE = "https://gnews.io/api/v4/search"
 
 SEARCH_QUERIES = [
     "Equinor",
@@ -21,26 +20,24 @@ SEARCH_QUERIES = [
 
 
 def fetch_articles():
-    if not NEWS_API_KEY:
-        raise ValueError("NEWS_API_KEY is not set. Please add it to your .env file.")
+    if not GNEWS_API_KEY:
+        raise ValueError("GNEWS_API_KEY is not set. Please add it to your environment variables.")
 
     seen_titles = set()
     articles = []
-    from_date = (datetime.utcnow() - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     for query in SEARCH_QUERIES:
         if len(articles) >= 20:
             break
         try:
             response = requests.get(
-                NEWS_API_BASE,
+                GNEWS_BASE,
                 params={
                     "q": query,
-                    "language": "en",
-                    "sortBy": "publishedAt",
-                    "pageSize": 5,
-                    "from": from_date,
-                    "apiKey": NEWS_API_KEY,
+                    "lang": "en",
+                    "max": 3,
+                    "sortby": "publishedAt",
+                    "apikey": GNEWS_API_KEY,
                 },
                 timeout=10,
             )
@@ -75,7 +72,7 @@ def fetch_articles():
 
     if not articles:
         raise RuntimeError(
-            "No articles were fetched. Check your NEWS_API_KEY and internet connection."
+            "No articles were fetched. Check your GNEWS_API_KEY and internet connection."
         )
 
     return articles

@@ -19,8 +19,8 @@ def check_api_keys():
     missing = []
     if not os.getenv("ANTHROPIC_API_KEY"):
         missing.append("ANTHROPIC_API_KEY")
-    if not os.getenv("NEWS_API_KEY"):
-        missing.append("NEWS_API_KEY")
+    if not os.getenv("GNEWS_API_KEY"):
+        missing.append("GNEWS_API_KEY")
     return missing
 
 
