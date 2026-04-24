@@ -1,65 +1,101 @@
 import os
+import sys
+import threading
+import webbrowser
+import time
 from datetime import datetime
 from functools import wraps
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, redirect
 from dotenv import load_dotenv
+
+# ── Path setup for PyInstaller frozen .exe ──
+if getattr(sys, "frozen", False):
+    BASE_DIR = sys._MEIPASS
+    DATA_DIR = os.path.join(os.path.expanduser("~"), "EquinorMediaMonitor")
+else:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    DATA_DIR = os.path.join(BASE_DIR, "reports")
+
+REPORTS_DIR = os.path.join(DATA_DIR, "reports") if getattr(sys, "frozen", False) else DATA_DIR
+os.environ["REPORTS_DIR"] = REPORTS_DIR
+os.makedirs(REPORTS_DIR, exist_ok=True)
+
+load_dotenv()
+
+# Inject stored API keys into os.environ so fetcher/analyzer can read them
+from config import get_key, is_configured, save_config as _save_config
+
+for _key in ("ANTHROPIC_API_KEY", "NEWS_API_KEY"):
+    _val = get_key(_key)
+    if _val:
+        os.environ[_key] = _val
+
 from fetcher import fetch_articles
 from analyzer import run_full_analysis
 from reporter import save_report, load_report, load_latest_report, list_report_dates
 from scheduler import start_scheduler
 
-load_dotenv()
-
-app = Flask(__name__)
+app = Flask(__name__, template_folder=os.path.join(BASE_DIR, "templates"))
 
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
-
-
-def check_api_keys():
-    missing = []
-    if not os.getenv("ANTHROPIC_API_KEY"):
-        missing.append("ANTHROPIC_API_KEY")
-    if not os.getenv("NEWS_API_KEY"):
-        missing.append("NEWS_API_KEY")
-    return missing
 
 
 def require_admin(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        if not ADMIN_PASSWORD:
-            return jsonify({"error": "ADMIN_PASSWORD is not set on the server."}), 500
-        provided = (
-            request.headers.get("X-Admin-Password")
-            or (request.get_json(silent=True) or {}).get("admin_password", "")
-        )
-        if provided != ADMIN_PASSWORD:
-            return jsonify({"error": "Unauthorized. Incorrect admin password."}), 401
+        if ADMIN_PASSWORD:
+            provided = (
+                request.headers.get("X-Admin-Password")
+                or (request.get_json(silent=True) or {}).get("admin_password", "")
+            )
+            if provided != ADMIN_PASSWORD:
+                return jsonify({"error": "Unauthorized."}), 401
         return f(*args, **kwargs)
     return decorated
 
 
 @app.route("/")
 def index():
+    if not is_configured():
+        return redirect("/setup")
     today = datetime.utcnow().strftime("%Y-%m-%d")
     report = load_report(today) or load_latest_report()
-    missing_keys = check_api_keys()
     report_dates = list_report_dates()
     admin_enabled = bool(ADMIN_PASSWORD)
     return render_template(
         "index.html",
         report=report,
-        missing_keys=missing_keys,
         report_dates=report_dates,
         today=today,
         admin_enabled=admin_enabled,
     )
 
 
+@app.route("/setup")
+def setup():
+    return render_template("setup.html", configured=is_configured())
+
+
+@app.route("/save-config", methods=["POST"])
+def save_config_route():
+    data = request.get_json()
+    anthropic_key = (data.get("ANTHROPIC_API_KEY") or "").strip()
+    news_key = (data.get("NEWS_API_KEY") or "").strip()
+
+    if not anthropic_key or not news_key:
+        return jsonify({"error": "Both API keys are required."}), 400
+
+    _save_config({"ANTHROPIC_API_KEY": anthropic_key, "NEWS_API_KEY": news_key})
+    os.environ["ANTHROPIC_API_KEY"] = anthropic_key
+    os.environ["NEWS_API_KEY"] = news_key
+
+    return jsonify({"success": True})
+
+
 @app.route("/analyze", methods=["POST"])
 @require_admin
 def analyze():
-    missing = check_api_keys()
+    missing = [k for k in ("ANTHROPIC_API_KEY", "NEWS_API_KEY") if not os.getenv(k)]
     if missing:
         return jsonify({"error": f"Missing API keys: {', '.join(missing)}."}), 400
 
@@ -68,8 +104,8 @@ def analyze():
         articles = fetch_articles()
         print(f"Fetched {len(articles)} articles. Running AI analysis...")
         briefing = run_full_analysis(articles)
-        path = save_report(briefing)
-        print(f"Report saved: {path}")
+        save_report(briefing)
+        print("Done.")
         return jsonify({"success": True, "report": briefing})
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
@@ -91,11 +127,21 @@ def get_report(date):
 def latest_report():
     report = load_latest_report()
     if not report:
-        return jsonify({"error": "No reports available yet."}), 404
+        return jsonify({"error": "No reports yet."}), 404
     return jsonify(report)
+
+
+def open_browser(port):
+    time.sleep(1.5)
+    webbrowser.open(f"http://localhost:{port}")
 
 
 if __name__ == "__main__":
     start_scheduler()
     port = int(os.getenv("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=os.getenv("FLASK_DEBUG", "false").lower() == "true")
+    debug = os.getenv("FLASK_DEBUG", "false").lower() == "true"
+
+    if not debug:
+        threading.Thread(target=open_browser, args=(port,), daemon=True).start()
+
+    app.run(host="127.0.0.1", port=port, debug=debug, use_reloader=False)

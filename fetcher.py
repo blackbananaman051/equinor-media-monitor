@@ -5,7 +5,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-NEWS_API_KEY = os.getenv("NEWS_API_KEY")
 NEWS_API_BASE = "https://newsapi.org/v2/everything"
 
 SEARCH_QUERIES = [
@@ -21,8 +20,9 @@ SEARCH_QUERIES = [
 
 
 def fetch_articles():
+    NEWS_API_KEY = os.getenv("NEWS_API_KEY")
     if not NEWS_API_KEY:
-        raise ValueError("NEWS_API_KEY is not set. Please add it to your .env file.")
+        raise ValueError("NEWS_API_KEY is not set. Please add it via the setup screen.")
 
     seen_titles = set()
     articles = []

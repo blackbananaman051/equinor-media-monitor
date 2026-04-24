@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Equinor Media Monitor — Setup</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #F4F6F9;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: linear-gradient(135deg, #1A1A2E 0%, #0A3D62 100%);
+      color: white;
+      padding: 18px 32px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    }
+    .eq-logo {
+      width: 40px; height: 40px;
+      background: #C8102E;
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 900; font-size: 18px; letter-spacing: -1px;
+      flex-shrink: 0;
+    }
+    header h1 { font-size: 1.35rem; font-weight: 700; }
+
+    main {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 24px;
+    }
+
+    .setup-card {
+      background: white;
+      border-radius: 12px;
+      padding: 40px 44px;
+      max-width: 540px;
+      width: 100%;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+      border: 1px solid #DEE2E6;
+    }
+
+    .setup-card h2 {
+      font-size: 1.3rem;
+      color: #0A3D62;
+      margin-bottom: 8px;
+    }
+    .setup-card .subtitle {
+      font-size: 0.9rem;
+      color: #6C757D;
+      margin-bottom: 32px;
+      line-height: 1.5;
+    }
+
+    .field { margin-bottom: 24px; }
+    .field label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #212529;
+      margin-bottom: 6px;
+    }
+    .field input {
+      width: 100%;
+      padding: 11px 14px;
+      border: 1px solid #DEE2E6;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-family: monospace;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .field input:focus { border-color: #1E6FA5; }
+    .field .hint {
+      font-size: 0.78rem;
+      color: #6C757D;
+      margin-top: 6px;
+    }
+    .field .hint a {
+      color: #1E6FA5;
+      text-decoration: none;
+    }
+    .field .hint a:hover { text-decoration: underline; }
+
+    .divider {
+      border: none;
+      border-top: 1px solid #DEE2E6;
+      margin: 28px 0;
+    }
+
+    #errorMsg {
+      background: #FCEBEB;
+      border: 1px solid #C8102E;
+      border-radius: 7px;
+      padding: 10px 14px;
+      font-size: 0.85rem;
+      color: #A32D2D;
+      margin-bottom: 16px;
+      display: none;
+    }
+
+    .save-btn {
+      width: 100%;
+      background: #C8102E;
+      color: white;
+      border: none;
+      padding: 13px;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      transition: background 0.2s;
+    }
+    .save-btn:hover { background: #a50d25; }
+    .save-btn:disabled { background: #888; cursor: not-allowed; }
+
+    .spinner {
+      width: 18px; height: 18px;
+      border: 2px solid rgba(255,255,255,0.4);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: none;
+    }
+    .spinner.active { display: block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .success-box {
+      background: #EAF3DE;
+      border: 1px solid #52b788;
+      border-radius: 8px;
+      padding: 16px;
+      text-align: center;
+      display: none;
+    }
+    .success-box .check { font-size: 2rem; margin-bottom: 8px; }
+    .success-box p { font-size: 0.9rem; color: #3B6D11; margin-bottom: 14px; }
+    .success-box a {
+      display: inline-block;
+      background: #3B6D11;
+      color: white;
+      padding: 9px 24px;
+      border-radius: 7px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+    .success-box a:hover { background: #2d5209; }
+
+    footer {
+      text-align: center;
+      padding: 20px;
+      font-size: 0.78rem;
+      color: #6C757D;
+      border-top: 1px solid #DEE2E6;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="eq-logo">EQ</div>
+    <h1>Equinor Daily Intelligence Brief</h1>
+  </header>
+
+  <main>
+    <div class="setup-card">
+      <h2>Welcome — let's get you set up</h2>
+      <p class="subtitle">
+        This app needs two free API keys to work. It takes about 2 minutes.
+        Your keys are stored only on your computer and never shared.
+      </p>
+
+      <div class="field">
+        <label for="anthropicKey">Anthropic API Key</label>
+        <input type="password" id="anthropicKey" placeholder="sk-ant-..." autocomplete="off" />
+        <p class="hint">
+          Get your free key at
+          <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a>
+          → sign up → API Keys → Create Key
+        </p>
+      </div>
+
+      <div class="field">
+        <label for="newsKey">NewsAPI Key</label>
+        <input type="password" id="newsKey" placeholder="Your NewsAPI key..." autocomplete="off" />
+        <p class="hint">
+          Get your free key at
+          <a href="https://newsapi.org" target="_blank">newsapi.org</a>
+          → Get API Key → sign up (it's free)
+        </p>
+      </div>
+
+      <hr class="divider" />
+
+      <div id="errorMsg"></div>
+
+      <div id="formArea">
+        <button class="save-btn" onclick="saveConfig()">
+          <span class="spinner" id="spinner"></span>
+          <span id="btnText">Save and open the app</span>
+        </button>
+      </div>
+
+      <div class="success-box" id="successBox">
+        <div class="check">✓</div>
+        <p>Keys saved! You're ready to go.</p>
+        <a href="/">Open the dashboard</a>
+      </div>
+    </div>
+  </main>
+
+  <footer>Equinor AI Media Monitor — powered by Claude AI + NewsAPI</footer>
+
+  <script>
+    // Pre-fill if already configured
+    {% if configured %}
+    document.querySelector('.subtitle').textContent =
+      'Your keys are already saved. You can update them below.';
+    {% endif %}
+
+    async function saveConfig() {
+      const anthropicKey = document.getElementById('anthropicKey').value.trim();
+      const newsKey = document.getElementById('newsKey').value.trim();
+      const errorMsg = document.getElementById('errorMsg');
+
+      errorMsg.style.display = 'none';
+
+      if (!anthropicKey) {
+        showError('Please enter your Anthropic API key.');
+        return;
+      }
+      if (!anthropicKey.startsWith('sk-ant-')) {
+        showError('That doesn\'t look like an Anthropic key — it should start with sk-ant-');
+        return;
+      }
+      if (!newsKey) {
+        showError('Please enter your NewsAPI key.');
+        return;
+      }
+
+      const btn = document.querySelector('.save-btn');
+      const spinner = document.getElementById('spinner');
+      const btnText = document.getElementById('btnText');
+
+      btn.disabled = true;
+      spinner.classList.add('active');
+      btnText.textContent = 'Saving...';
+
+      try {
+        const res = await fetch('/save-config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ANTHROPIC_API_KEY: anthropicKey, NEWS_API_KEY: newsKey }),
+        });
+        const data = await res.json();
+
+        if (!res.ok || data.error) {
+          showError(data.error || 'Failed to save. Please try again.');
+          return;
+        }
+
+        document.getElementById('formArea').style.display = 'none';
+        document.getElementById('successBox').style.display = 'block';
+
+      } catch (err) {
+        showError('Error: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        spinner.classList.remove('active');
+        btnText.textContent = 'Save and open the app';
+      }
+    }
+
+    function showError(msg) {
+      const el = document.getElementById('errorMsg');
+      el.textContent = msg;
+      el.style.display = 'block';
+    }
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') saveConfig();
+    });
+  </script>
+</body>
+</html>

@@ -499,12 +499,11 @@
         {% endfor %}
       </select>
       {% endif %}
-      {% if admin_enabled %}
-      <button id="runBtn" onclick="openModal()">
+      <a href="/setup" style="color:rgba(255,255,255,0.65);font-size:0.82rem;text-decoration:none;" title="Update API keys">Settings</a>
+      <button id="runBtn" onclick="handleRunClick()">
         <span class="spinner" id="spinner"></span>
         <span id="runBtnText">Run Today's Analysis</span>
       </button>
-      {% endif %}
     </div>
   </header>
 
@@ -654,6 +653,49 @@
   </footer>
 
   <script>
+    const ADMIN_ENABLED = {{ 'true' if admin_enabled else 'false' }};
+
+    function handleRunClick() {
+      if (ADMIN_ENABLED) {
+        openModal();
+      } else {
+        runAnalysisDirect();
+      }
+    }
+
+    // ── Direct run (no password, local mode) ──
+    async function runAnalysisDirect() {
+      const btn = document.getElementById('runBtn');
+      const spinner = document.getElementById('spinner');
+      const btnText = document.getElementById('runBtnText');
+
+      btn.disabled = true;
+      spinner.classList.add('active');
+      btnText.textContent = 'Fetching news...';
+      hideAlert();
+      setProgress(15);
+
+      try {
+        btnText.textContent = 'Analyzing with Claude...';
+        setProgress(40);
+        const res = await fetch('/analyze', { method: 'POST' });
+        setProgress(85);
+        const data = await res.json();
+        if (!res.ok || data.error) throw new Error(data.error || 'Analysis failed.');
+        setProgress(100);
+        renderReport(data.report);
+        showAlert('Analysis complete! Report generated for ' + data.report.date, 'success');
+      } catch (err) {
+        setProgress(0);
+        showAlert('Error: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        spinner.classList.remove('active');
+        btnText.textContent = "Run Today's Analysis";
+        setTimeout(() => setProgress(0), 600);
+      }
+    }
+
     // ── Modal ──
     function openModal() {
       document.getElementById('adminModal').classList.add('open');
