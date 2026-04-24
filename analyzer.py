@@ -9,11 +9,13 @@ load_dotenv()
 MODEL = "claude-opus-4-5"
 
 SYSTEM_PROMPT = (
-    "You are an intelligence analyst for Equinor's communications team. "
-    "Your job is to monitor global oil & energy news daily and produce a clear, concise briefing "
-    "about what matters for Equinor specifically. Equinor is a Norwegian state-majority-owned energy "
-    "company focused on oil, gas, and renewable energy. Consider how news affects Equinor's stock, "
-    "operations, reputation, regulatory environment, and energy transition strategy. "
+    "You are an intelligence analyst covering the Norwegian oil and gas industry. "
+    "Your job is to monitor global energy news daily and produce a clear, concise briefing "
+    "about what matters for Norway's oil and gas sector. This includes companies like Equinor, "
+    "Aker BP, Vår Energi, TotalEnergies Norway, and the Norwegian government's petroleum policy. "
+    "Consider how news affects oil prices, production on the Norwegian continental shelf, "
+    "the Norwegian Oil Fund (Government Pension Fund), energy transition strategy, and "
+    "regulatory developments from the Norwegian Petroleum Directorate. "
     "Respond only with valid JSON."
 )
 
@@ -29,8 +31,8 @@ def analyze_article(client, article):
     prompt = f"""Analyze this news article and return a JSON object with these fields:
 - summary: 2-3 sentence summary in Norwegian
 - sentiment: "positive", "negative", or "neutral"
-- equinor_relevance: "high", "medium", or "low"
-- relevance_reason: why this matters to Equinor specifically
+- norway_relevance: "high", "medium", or "low" (how relevant is this to the Norwegian oil industry)
+- relevance_reason: why this matters to Norway's oil and gas sector specifically
 - tags: list of 3 relevant tags
 
 Article title: {article['title']}
@@ -49,16 +51,20 @@ Return only valid JSON, no other text."""
             messages=[{"role": "user", "content": prompt}],
         )
         raw = message.content[0].text.strip()
-        # Strip markdown code fences if present
         if raw.startswith("```"):
             raw = raw.split("```")[1]
             if raw.startswith("json"):
                 raw = raw[4:]
-        return json.loads(raw)
+        result = json.loads(raw)
+        # Map norway_relevance to equinor_relevance for template compatibility
+        if "norway_relevance" in result and "equinor_relevance" not in result:
+            result["equinor_relevance"] = result["norway_relevance"]
+        return result
     except (json.JSONDecodeError, anthropic.APIError) as e:
         return {
             "summary": article.get("description", "No summary available."),
             "sentiment": "neutral",
+            "norway_relevance": "low",
             "equinor_relevance": "low",
             "relevance_reason": f"Analysis failed: {str(e)}",
             "tags": [],
@@ -74,18 +80,18 @@ def synthesize_briefing(client, analyzed_articles):
         for i, a in enumerate(analyzed_articles)
     )
 
-    prompt = f"""Based on these {len(analyzed_articles)} analyzed news articles about oil, energy, and Equinor,
+    prompt = f"""Based on these {len(analyzed_articles)} analyzed news articles about the Norwegian oil and gas industry,
 produce a comprehensive daily intelligence briefing. Return a JSON object with these fields:
 - date: today's date in YYYY-MM-DD format
-- headline: one-sentence summary of the day in oil & energy
-- situation_summary: 3-4 sentence overview of what happened globally in oil and energy markets today
-- equinor_impact: 2-3 sentences specifically about what today's news means for Equinor
-- top_risk: the single biggest risk for Equinor today based on the news
-- top_opportunity: the single biggest opportunity for Equinor today
+- headline: one-sentence summary of the most important development for Norwegian oil today
+- situation_summary: 3-4 sentence overview of what happened in Norwegian and global oil & energy markets
+- equinor_impact: 2-3 sentences about what today's news means for Norway's oil sector (Equinor, Aker BP, Vår Energi, oil fund)
+- top_risk: the single biggest risk for the Norwegian oil industry today
+- top_opportunity: the single biggest opportunity for the Norwegian oil industry today
 - market_sentiment: "positive", "negative", or "neutral"
 - oil_price_trend: "rising", "falling", or "stable"
 - key_themes: list of 3-5 key themes from today's news
-- recommended_actions: list of 2-4 actions the Equinor comms team should consider today
+- recommended_actions: list of 2-4 strategic observations or actions relevant to Norwegian oil stakeholders
 
 Articles analyzed:
 {summaries_text}

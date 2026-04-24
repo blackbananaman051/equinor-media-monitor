@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Equinor Daily Intelligence Brief</title>
+  <title>Norwegian Oil Industry Intelligence Brief</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -486,7 +486,7 @@
     <div class="header-left">
       <div class="eq-logo">EQ</div>
       <div>
-        <h1>Equinor Daily Intelligence Brief</h1>
+        <h1>Norwegian Oil Industry Intelligence Brief</h1>
         <div class="date" id="headerDate">{{ today }}</div>
       </div>
     </div>
@@ -499,10 +499,11 @@
         {% endfor %}
       </select>
       {% endif %}
+      <button id="langBtn" onclick="toggleLang()" style="background:rgba(255,255,255,0.15);color:white;border:1px solid rgba(255,255,255,0.3);padding:7px 14px;border-radius:6px;font-size:0.82rem;cursor:pointer;">🇳🇴 Norsk</button>
       <a href="/setup" style="color:rgba(255,255,255,0.65);font-size:0.82rem;text-decoration:none;" title="Update API keys">Settings</a>
       <button id="runBtn" onclick="handleRunClick()">
         <span class="spinner" id="spinner"></span>
-        <span id="runBtnText">Run Today's Analysis</span>
+        <span id="runBtnText">Run Weekly Analysis</span>
       </button>
     </div>
   </header>
@@ -512,8 +513,8 @@
 
     <div id="emptyState" {% if report %}style="display:none"{% endif %}>
       <div class="icon">📡</div>
-      <h2>Today's briefing is being prepared</h2>
-      <p>Check back soon — the daily intelligence report is generated automatically each weekday morning.</p>
+      <h2>No briefing yet</h2>
+      <p>Click <strong>Run Weekly Analysis</strong> to fetch the latest Norwegian oil & energy news and generate an AI-powered intelligence report.</p>
     </div>
 
     <div id="reportContent" class="{% if report %}visible{% endif %}">
@@ -878,6 +879,127 @@
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
+    }
+
+    // ── Language toggle ──
+    const TRANSLATIONS = {
+      en: {
+        title: 'Norwegian Oil Industry Intelligence Brief',
+        runBtn: 'Run Weekly Analysis',
+        settings: 'Settings',
+        langBtn: '🇳🇴 Norsk',
+        articles: 'Articles Analyzed',
+        fromNewsAPI: 'from NewsAPI',
+        sentiment: 'Market Sentiment',
+        relevant: 'Norway-Relevant',
+        highMedium: 'high + medium relevance',
+        oilTrend: 'Oil Price Trend',
+        situation: 'Situation Summary',
+        impact: 'Norway Impact',
+        risk: 'Top Risk',
+        opportunity: 'Top Opportunity',
+        actions: 'Recommended Actions',
+        themes: 'Key Themes',
+        newsArticles: 'News Articles',
+        filterAll: 'All',
+        filterHigh: 'High Relevance',
+        filterPos: 'Positive',
+        filterNeg: 'Negative',
+        emptyTitle: 'No briefing yet',
+        emptyText: 'Click Run Weekly Analysis to fetch the latest news.',
+        lastUpdated: 'Last updated',
+        footer: 'Powered by Claude AI + NewsAPI',
+      },
+      no: {
+        title: 'Norsk Olje- og Gassindustri — Ukentlig Rapport',
+        runBtn: 'Kjør ukentlig analyse',
+        settings: 'Innstillinger',
+        langBtn: '🇬🇧 English',
+        articles: 'Artikler analysert',
+        fromNewsAPI: 'fra NewsAPI',
+        sentiment: 'Markedssentiment',
+        relevant: 'Norsk-relevante',
+        highMedium: 'høy + middels relevans',
+        oilTrend: 'Oljepristrend',
+        situation: 'Situasjonsoversikt',
+        impact: 'Norsk påvirkning',
+        risk: 'Største risiko',
+        opportunity: 'Største mulighet',
+        actions: 'Anbefalte tiltak',
+        themes: 'Nøkkeltemaer',
+        newsArticles: 'Nyhetsartikler',
+        filterAll: 'Alle',
+        filterHigh: 'Høy relevans',
+        filterPos: 'Positiv',
+        filterNeg: 'Negativ',
+        emptyTitle: 'Ingen rapport ennå',
+        emptyText: 'Klikk «Kjør ukentlig analyse» for å hente de siste nyhetene.',
+        lastUpdated: 'Sist oppdatert',
+        footer: 'Drevet av Claude AI + NewsAPI',
+      }
+    };
+
+    let currentLang = 'en';
+
+    function toggleLang() {
+      currentLang = currentLang === 'en' ? 'no' : 'en';
+      applyLang(currentLang);
+    }
+
+    function applyLang(lang) {
+      const t = TRANSLATIONS[lang];
+      document.querySelector('header h1').textContent = t.title;
+      document.getElementById('runBtnText').textContent = t.runBtn;
+      document.querySelector('a[href="/setup"]').textContent = t.settings;
+      document.getElementById('langBtn').textContent = t.langBtn;
+      document.title = t.title;
+
+      // Metric labels
+      const labels = document.querySelectorAll('.metric-card .label');
+      if (labels[0]) labels[0].textContent = t.articles;
+      if (labels[1]) labels[1].textContent = t.sentiment;
+      if (labels[2]) labels[2].textContent = t.relevant;
+      if (labels[3]) labels[3].textContent = t.oilTrend;
+
+      const subs = document.querySelectorAll('.metric-card .sub');
+      if (subs[0]) subs[0].textContent = t.fromNewsAPI;
+      if (subs[1]) subs[1].textContent = t.highMedium;
+
+      // Section labels
+      const icLabels = document.querySelectorAll('.insight-card .ic-label');
+      if (icLabels[0]) icLabels[0].textContent = t.risk;
+      if (icLabels[1]) icLabels[1].textContent = t.opportunity;
+
+      const sectionTitles = document.querySelectorAll('.section-title');
+      if (sectionTitles[0]) sectionTitles[0].textContent = t.actions;
+      if (sectionTitles[1]) sectionTitles[1].textContent = t.themes;
+
+      document.querySelector('.impact-label').textContent = t.impact;
+
+      // Articles header
+      const artHeader = document.querySelector('.articles-header .section-title');
+      if (artHeader) artHeader.textContent = t.newsArticles;
+
+      // Filter buttons
+      const filterBtns = document.querySelectorAll('.filter-btn');
+      if (filterBtns[0]) filterBtns[0].textContent = t.filterAll;
+      if (filterBtns[1]) filterBtns[1].textContent = t.filterHigh;
+      if (filterBtns[2]) filterBtns[2].textContent = t.filterPos;
+      if (filterBtns[3]) filterBtns[3].textContent = t.filterNeg;
+
+      // Empty state
+      const emptyTitle = document.querySelector('#emptyState h2');
+      const emptyText = document.querySelector('#emptyState p');
+      if (emptyTitle) emptyTitle.textContent = t.emptyTitle;
+      if (emptyText) emptyText.textContent = t.emptyText;
+
+      // Footer
+      const lastUpdatedEl = document.getElementById('lastUpdated');
+      if (lastUpdatedEl && lastUpdatedEl.textContent.includes(':')) {
+        const date = lastUpdatedEl.textContent.split(': ')[1];
+        lastUpdatedEl.textContent = t.lastUpdated + ': ' + date;
+      }
+      document.querySelector('footer').firstChild.textContent = t.footer + ' · ';
     }
   </script>
 </body>

@@ -1,18 +1,19 @@
 @echo off
-echo === Equinor Media Monitor — Build ===
+echo === Equinor Media Monitor - Build ===
 echo.
 
 echo Installing / updating dependencies...
-pip install -r requirements.txt pyinstaller --quiet
+py -m pip install -r requirements.txt pyinstaller --quiet
 if errorlevel 1 (
-    echo ERROR: pip install failed. Make sure Python is installed and in PATH.
+    echo ERROR: pip install failed. Make sure Python is installed.
+    echo Try running: py --version
     pause
     exit /b 1
 )
 
 echo.
 echo Building .exe (this takes 2-3 minutes)...
-pyinstaller equinor_monitor.spec --noconfirm
+py -m PyInstaller equinor_monitor.spec --noconfirm
 if errorlevel 1 (
     echo ERROR: Build failed. See output above.
     pause

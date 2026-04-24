@@ -8,14 +8,18 @@ load_dotenv()
 NEWS_API_BASE = "https://newsapi.org/v2/everything"
 
 SEARCH_QUERIES = [
+    "Norway oil gas industry",
     "Equinor",
-    "oil price Brent crude",
-    "North Sea energy",
-    "Norway oil gas",
-    "OPEC oil market",
-    "offshore energy renewable",
-    "carbon capture CCS energy",
-    "energy transition oil company",
+    "Norwegian petroleum",
+    "North Sea oil",
+    "Brent crude oil price",
+    "Statoil Norway energy",
+    "Norwegian continental shelf",
+    "Aker BP offshore",
+    "OPEC oil production",
+    "Norway energy transition",
+    "offshore drilling Norway",
+    "oil gas exploration Norway",
 ]
 
 
@@ -26,7 +30,8 @@ def fetch_articles():
 
     seen_titles = set()
     articles = []
-    from_date = (datetime.utcnow() - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    last_api_error = None
+    from_date = (datetime.utcnow() - timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     for query in SEARCH_QUERIES:
         if len(articles) >= 20:
@@ -44,8 +49,12 @@ def fetch_articles():
                 },
                 timeout=10,
             )
-            response.raise_for_status()
             data = response.json()
+
+            # Capture any API-level error message on first failure
+            if data.get("status") == "error" and not last_api_error:
+                last_api_error = data.get("message", f"HTTP {response.status_code}")
+                continue
 
             for item in data.get("articles", []):
                 title = item.get("title", "").strip()
@@ -70,10 +79,12 @@ def fetch_articles():
                     break
 
         except requests.RequestException as e:
-            print(f"Warning: Failed to fetch query '{query}': {e}")
+            last_api_error = str(e)
             continue
 
     if not articles:
+        if last_api_error:
+            raise RuntimeError(f"NewsAPI error: {last_api_error}")
         raise RuntimeError(
             "No articles were fetched. Check your NEWS_API_KEY and internet connection."
         )
