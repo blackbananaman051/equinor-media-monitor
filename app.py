@@ -1,11 +1,13 @@
 import os
 import sys
+import json
 import threading
 import webbrowser
 import time
 from datetime import datetime
 from functools import wraps
-from flask import Flask, render_template, jsonify, request, redirect
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from flask import Flask, render_template, jsonify, request, redirect, Response, stream_with_context
 from dotenv import load_dotenv
 
 # ── Path setup for PyInstaller frozen .exe ──
@@ -31,7 +33,7 @@ for _key in ("ANTHROPIC_API_KEY", "NEWS_API_KEY"):
         os.environ[_key] = _val
 
 from fetcher import fetch_articles
-from analyzer import run_full_analysis
+from analyzer import run_full_analysis, analyze_article, synthesize_briefing, get_client as get_analyzer_client
 from reporter import save_report, load_report, load_latest_report, list_report_dates
 from scheduler import start_scheduler
 
@@ -127,6 +129,81 @@ def analyze():
         return jsonify({"error": str(e)}), 502
     except Exception as e:
         return jsonify({"error": f"Unexpected error: {str(e)}"}), 500
+
+
+@app.route("/analyze/stream", methods=["POST"])
+def analyze_stream():
+    # All request-context reads must happen here, outside the generator.
+    if ADMIN_PASSWORD:
+        provided = (
+            request.headers.get("X-Admin-Password")
+            or (request.get_json(silent=True) or {}).get("admin_password", "")
+        )
+        if provided != ADMIN_PASSWORD:
+            return jsonify({"error": "Unauthorized."}), 401
+
+    anthropic_key = (request.headers.get("X-Anthropic-Key") or "").strip() or os.getenv("ANTHROPIC_API_KEY", "")
+    news_key      = (request.headers.get("X-News-Key")      or "").strip() or os.getenv("NEWS_API_KEY", "")
+
+    missing = [k for k, v in [("ANTHROPIC_API_KEY", anthropic_key), ("NEWS_API_KEY", news_key)] if not v]
+    if missing:
+        return jsonify({"error": f"Missing API keys: {', '.join(missing)}."}), 400
+
+    os.environ["ANTHROPIC_API_KEY"] = anthropic_key
+    os.environ["NEWS_API_KEY"]      = news_key
+
+    def generate():
+        def evt(data):
+            return f"data: {json.dumps(data)}\n\n"
+
+        try:
+            yield evt({"status": "fetching", "message": "Fetching latest news..."})
+
+            articles = fetch_articles()
+            total    = len(articles)
+            yield evt({"status": "fetched", "count": total})
+
+            client   = get_analyzer_client()
+            analyzed = [None] * total
+            completed_count = 0
+
+            def _do(i):
+                return i, {**articles[i], **analyze_article(client, articles[i])}
+
+            with ThreadPoolExecutor(max_workers=8) as pool:
+                futures = {pool.submit(_do, i): i for i in range(total)}
+                for future in as_completed(futures):
+                    i, merged = future.result()
+                    analyzed[i]      = merged
+                    completed_count += 1
+                    yield evt({
+                        "status":  "analyzing",
+                        "current": completed_count,
+                        "total":   total,
+                        "title":   articles[i]["title"][:65],
+                    })
+
+            yield evt({"status": "synthesizing", "message": "Generating intelligence briefing..."})
+
+            briefing = synthesize_briefing(client, analyzed)
+            briefing["date"]           = datetime.utcnow().strftime("%Y-%m-%d")
+            briefing["articles"]       = analyzed
+            briefing["articles_count"] = total
+            briefing["relevant_count"] = sum(
+                1 for a in analyzed if a.get("equinor_relevance") in ("high", "medium")
+            )
+            save_report(briefing)
+
+            yield evt({"status": "done", "report": briefing})
+
+        except Exception as e:
+            yield evt({"status": "error", "error": str(e)})
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.route("/report/<date>")

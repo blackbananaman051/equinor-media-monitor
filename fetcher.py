@@ -6,6 +6,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 NEWS_API_BASE = "https://newsapi.org/v2/everything"
+MAX_ARTICLES  = 50
+PAGE_SIZE     = 15
 
 SEARCH_QUERIES = [
     "Norway oil gas industry",
@@ -13,13 +15,16 @@ SEARCH_QUERIES = [
     "Norwegian petroleum",
     "North Sea oil",
     "Brent crude oil price",
-    "Statoil Norway energy",
     "Norwegian continental shelf",
     "Aker BP offshore",
     "OPEC oil production",
     "Norway energy transition",
     "offshore drilling Norway",
     "oil gas exploration Norway",
+    "LNG Norway export",
+    "Norwegian energy policy",
+    "oil price forecast 2025",
+    "Norway carbon emissions energy",
 ]
 
 
@@ -28,54 +33,59 @@ def fetch_articles():
     if not NEWS_API_KEY:
         raise ValueError("NEWS_API_KEY is not set. Please add it via the setup screen.")
 
+    seen_urls   = set()
     seen_titles = set()
-    articles = []
+    articles    = []
     last_api_error = None
     from_date = (datetime.utcnow() - timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     for query in SEARCH_QUERIES:
-        if len(articles) >= 20:
+        if len(articles) >= MAX_ARTICLES:
             break
         try:
             response = requests.get(
                 NEWS_API_BASE,
                 params={
-                    "q": query,
+                    "q":        query,
                     "language": "en",
-                    "sortBy": "publishedAt",
-                    "pageSize": 5,
-                    "from": from_date,
-                    "apiKey": NEWS_API_KEY,
+                    "sortBy":   "publishedAt",
+                    "pageSize": PAGE_SIZE,
+                    "from":     from_date,
+                    "apiKey":   NEWS_API_KEY,
                 },
                 timeout=10,
             )
             data = response.json()
 
-            # Capture any API-level error message on first failure
             if data.get("status") == "error" and not last_api_error:
                 last_api_error = data.get("message", f"HTTP {response.status_code}")
                 continue
 
             for item in data.get("articles", []):
                 title = item.get("title", "").strip()
+                url   = item.get("url",   "").strip()
+
                 if not title or title in seen_titles:
+                    continue
+                if url and url in seen_urls:
                     continue
                 if not item.get("description") and not item.get("content"):
                     continue
 
                 seen_titles.add(title)
-                articles.append(
-                    {
-                        "title": title,
-                        "description": item.get("description", ""),
-                        "url": item.get("url", ""),
-                        "source": item.get("source", {}).get("name", "Unknown"),
-                        "publishedAt": item.get("publishedAt", ""),
-                        "content": (item.get("content") or item.get("description") or "")[:500],
-                    }
-                )
+                if url:
+                    seen_urls.add(url)
 
-                if len(articles) >= 20:
+                articles.append({
+                    "title":       title,
+                    "description": item.get("description", ""),
+                    "url":         url,
+                    "source":      item.get("source", {}).get("name", "Unknown"),
+                    "publishedAt": item.get("publishedAt", ""),
+                    "content":     (item.get("content") or item.get("description") or "")[:500],
+                })
+
+                if len(articles) >= MAX_ARTICLES:
                     break
 
         except requests.RequestException as e:

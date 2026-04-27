@@ -127,20 +127,27 @@ Return only valid JSON, no other text."""
 
 
 def run_full_analysis(articles):
-    client = get_client()
+    from concurrent.futures import ThreadPoolExecutor, as_completed
 
-    analyzed = []
-    for i, article in enumerate(articles):
-        print(f"  Analyzing article {i+1}/{len(articles)}: {article['title'][:60]}...")
-        result = analyze_article(client, article)
-        merged = {**article, **result}
-        analyzed.append(merged)
+    client   = get_client()
+    total    = len(articles)
+    analyzed = [None] * total
+
+    def _do(i):
+        return i, {**articles[i], **analyze_article(client, articles[i])}
+
+    print(f"  Analyzing {total} articles in parallel...")
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        for future in as_completed({pool.submit(_do, i): i for i in range(total)}):
+            i, merged = future.result()
+            analyzed[i] = merged
+            print(f"    [{sum(a is not None for a in analyzed)}/{total}] {articles[i]['title'][:55]}...")
 
     print("  Synthesizing weekly briefing...")
     briefing = synthesize_briefing(client, analyzed)
-    briefing["date"] = datetime.utcnow().strftime("%Y-%m-%d")
-    briefing["articles"] = analyzed
-    briefing["articles_count"] = len(analyzed)
+    briefing["date"]           = datetime.utcnow().strftime("%Y-%m-%d")
+    briefing["articles"]       = analyzed
+    briefing["articles_count"] = total
     briefing["relevant_count"] = sum(
         1 for a in analyzed if a.get("equinor_relevance") in ("high", "medium")
     )

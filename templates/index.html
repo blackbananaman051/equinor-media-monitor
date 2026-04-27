@@ -38,15 +38,6 @@
       min-height: 100vh;
     }
 
-    /* ── Progress bar ── */
-    #progressBar {
-      position: fixed; top: 0; left: 0;
-      height: 3px; width: 0%;
-      background: var(--blue-lt);
-      transition: width 0.35s ease;
-      z-index: 9999;
-    }
-
     /* ── Nav ── */
     nav {
       background: var(--navy);
@@ -592,6 +583,67 @@
       line-height: 1.5;
     }
 
+    /* ── Progress panel ── */
+    .progress-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px 32px;
+      margin-bottom: 20px;
+    }
+    .progress-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+      font-weight: 700;
+      font-size: 1rem;
+      color: var(--text);
+    }
+    .progress-pulse {
+      width: 11px; height: 11px;
+      background: var(--blue);
+      border-radius: 50%;
+      flex-shrink: 0;
+      animation: ppulse 1s ease-in-out infinite;
+    }
+    @keyframes ppulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.5); opacity: 0.5; }
+    }
+    .progress-track {
+      height: 8px;
+      background: #f1f5f9;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 14px;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--blue) 0%, #60a5fa 100%);
+      border-radius: 4px;
+      width: 0%;
+      transition: width 0.5s ease;
+    }
+    .progress-info {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .progress-count { font-weight: 700; color: var(--text); }
+    .progress-article-text {
+      font-size: 0.78rem;
+      color: var(--muted);
+      font-style: italic;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-height: 16px;
+    }
+
     /* ── Responsive tweaks ── */
     @media (max-width: 640px) {
       nav { padding: 0 16px; gap: 12px; }
@@ -602,8 +654,6 @@
   </style>
 </head>
 <body>
-  <div id="progressBar"></div>
-
   <!-- Admin modal -->
   <div class="modal-overlay" id="adminModal" role="dialog" aria-modal="true">
     <div class="modal">
@@ -650,6 +700,24 @@
 
   <main>
     <div id="alertBanner" style="display:none" class="alert"></div>
+
+    <!-- Progress panel -->
+    <div id="progressPanel" style="display:none">
+      <div class="progress-card">
+        <div class="progress-header">
+          <div class="progress-pulse"></div>
+          <span id="progressTitle">Starting analysis...</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <div class="progress-info">
+          <span id="progressStatus">Connecting...</span>
+          <span class="progress-count" id="progressCount"></span>
+        </div>
+        <div class="progress-article-text" id="progressArticle"></div>
+      </div>
+    </div>
 
     <!-- Empty state -->
     <div id="emptyState" {% if report %}style="display:none"{% endif %}>
@@ -894,115 +962,143 @@
 
     // ── Run logic ──
     function handleRunClick() {
-      if (ADMIN_ENABLED) {
-        openModal();
-      } else {
-        runAnalysisDirect();
-      }
+      if (ADMIN_ENABLED) { openModal(); } else { runWithStream({}); }
     }
 
-    async function runAnalysisDirect() {
+    // ── Modal ──
+    function openModal() {
+      document.getElementById('adminModal').classList.add('open');
+      setTimeout(() => document.getElementById('adminPwdInput').focus(), 50);
+      document.getElementById('modalError').textContent = '';
+      document.getElementById('adminPwdInput').value = '';
+    }
+    function closeModal() {
+      document.getElementById('adminModal').classList.remove('open');
+    }
+    document.getElementById('adminModal').addEventListener('click', function(e) {
+      if (e.target === this) closeModal();
+    });
+    document.getElementById('adminPwdInput').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') submitAnalysis();
+      if (e.key === 'Escape') closeModal();
+    });
+    function submitAnalysis() {
+      const pwd = document.getElementById('adminPwdInput').value.trim();
+      if (!pwd) {
+        document.getElementById('modalError').textContent = 'Please enter the admin password.';
+        return;
+      }
+      closeModal();
+      runWithStream({ 'X-Admin-Password': pwd });
+    }
+
+    // ── Streaming analysis ──
+    async function runWithStream(extraHeaders) {
       const btn = document.getElementById('runBtn');
       const sp  = document.getElementById('spinner');
       const bt  = document.getElementById('runBtnText');
 
       btn.disabled = true;
       sp.classList.add('active');
-      bt.textContent = 'Fetching news...';
+      bt.textContent = 'Analyzing...';
       hideAlert();
-      setProgress(15);
+      showProgressPanel('Connecting...');
 
       try {
-        bt.textContent = 'Analyzing with Claude...';
-        setProgress(40);
-        const res = await fetch('/analyze', { method: 'POST' });
-        setProgress(85);
-        const data = await res.json();
-        if (!res.ok || data.error) throw new Error(data.error || 'Analysis failed.');
-        setProgress(100);
-        renderReport(data.report);
-        showAlert('Analysis complete! Report generated for ' + data.report.date, 'success');
+        const res = await fetch('/analyze/stream', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...extraHeaders },
+          body: JSON.stringify({}),
+        });
+
+        if (res.status === 401) {
+          throw new Error('Incorrect admin password.');
+        }
+        if (!res.ok) {
+          const d = await res.json().catch(() => ({}));
+          throw new Error(d.error || `Server error ${res.status}`);
+        }
+
+        const reader  = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer    = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const chunks = buffer.split('\n\n');
+          buffer = chunks.pop();
+
+          for (const chunk of chunks) {
+            for (const line of chunk.split('\n')) {
+              if (!line.startsWith('data: ')) continue;
+              let evt;
+              try { evt = JSON.parse(line.slice(6)); } catch { continue; }
+
+              if (evt.status === 'fetching') {
+                updateProgress('Fetching latest news...', '', '', 8);
+
+              } else if (evt.status === 'fetched') {
+                updateProgress(
+                  `Found ${evt.count} articles — analyzing in parallel...`,
+                  `0 / ${evt.count}`, '', 14
+                );
+
+              } else if (evt.status === 'analyzing') {
+                const pct = 14 + Math.round((evt.current / evt.total) * 66);
+                updateProgress(
+                  'Analyzing articles with Claude AI',
+                  `${evt.current} / ${evt.total}`,
+                  evt.title,
+                  pct
+                );
+
+              } else if (evt.status === 'synthesizing') {
+                updateProgress('Generating intelligence briefing...', '', '', 82);
+
+              } else if (evt.status === 'done') {
+                updateProgress('Complete!', '', '', 100);
+                await new Promise(r => setTimeout(r, 350));
+                hideProgressPanel();
+                renderReport(evt.report);
+                showAlert('Analysis complete — report generated for ' + evt.report.date, 'success');
+                return;
+
+              } else if (evt.status === 'error' || evt.error) {
+                throw new Error(evt.error || 'Analysis failed.');
+              }
+            }
+          }
+        }
+
       } catch (err) {
-        setProgress(0);
+        hideProgressPanel();
         showAlert('Error: ' + err.message);
       } finally {
         btn.disabled = false;
         sp.classList.remove('active');
         bt.textContent = T('runBtn');
-        setTimeout(() => setProgress(0), 600);
       }
     }
 
-    // ── Modal ──
-    function openModal() {
-      const m = document.getElementById('adminModal');
-      m.classList.add('open');
-      document.getElementById('adminPwdInput').focus();
-      document.getElementById('modalError').textContent = '';
-      document.getElementById('adminPwdInput').value = '';
+    function showProgressPanel(title) {
+      document.getElementById('progressTitle').textContent   = title;
+      document.getElementById('progressStatus').textContent  = '';
+      document.getElementById('progressCount').textContent   = '';
+      document.getElementById('progressArticle').textContent = '';
+      document.getElementById('progressFill').style.width    = '4%';
+      document.getElementById('progressPanel').style.display = 'block';
     }
-
-    function closeModal() {
-      document.getElementById('adminModal').classList.remove('open');
+    function hideProgressPanel() {
+      document.getElementById('progressPanel').style.display = 'none';
     }
-
-    document.getElementById('adminModal').addEventListener('click', function(e) {
-      if (e.target === this) closeModal();
-    });
-
-    document.getElementById('adminPwdInput').addEventListener('keydown', function(e) {
-      if (e.key === 'Enter') submitAnalysis();
-      if (e.key === 'Escape') closeModal();
-    });
-
-    async function submitAnalysis() {
-      const pwd = document.getElementById('adminPwdInput').value.trim();
-      if (!pwd) {
-        document.getElementById('modalError').textContent = 'Please enter the admin password.';
-        return;
-      }
-
-      const confirmBtn = document.getElementById('modalConfirm');
-      const ms = document.getElementById('modalSpinner');
-      const mb = document.getElementById('modalBtnText');
-
-      confirmBtn.disabled = true;
-      ms.classList.add('active');
-      mb.textContent = 'Running...';
-      document.getElementById('modalError').textContent = '';
-      setProgress(15);
-
-      try {
-        setProgress(40);
-        const res = await fetch('/analyze', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Admin-Password': pwd },
-          body: JSON.stringify({ admin_password: pwd }),
-        });
-        setProgress(85);
-        const data = await res.json();
-
-        if (res.status === 401) {
-          document.getElementById('modalError').textContent = 'Incorrect password.';
-          setProgress(0);
-          return;
-        }
-        if (!res.ok || data.error) throw new Error(data.error || 'Analysis failed.');
-
-        setProgress(100);
-        closeModal();
-        renderReport(data.report);
-        showAlert('Analysis complete! Report generated for ' + data.report.date, 'success');
-      } catch (err) {
-        setProgress(0);
-        closeModal();
-        showAlert('Error: ' + err.message);
-      } finally {
-        confirmBtn.disabled = false;
-        ms.classList.remove('active');
-        mb.textContent = 'Run Analysis';
-        setTimeout(() => setProgress(0), 600);
-      }
+    function updateProgress(title, count, article, pct) {
+      document.getElementById('progressTitle').textContent   = title;
+      document.getElementById('progressCount').textContent   = count;
+      document.getElementById('progressArticle').textContent = article;
+      document.getElementById('progressFill').style.width    = pct + '%';
     }
 
     // ── Render ──
@@ -1090,8 +1186,6 @@
     }
 
     // ── Utilities ──
-    function setProgress(pct) { document.getElementById('progressBar').style.width = pct + '%'; }
-
     function showAlert(msg, type='error') {
       const el = document.getElementById('alertBanner');
       el.textContent = msg;
