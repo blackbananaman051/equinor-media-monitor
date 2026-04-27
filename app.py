@@ -251,6 +251,18 @@ def market_data():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/market/history")
+def market_history():
+    try:
+        from market import get_stock_history
+        period = request.args.get("period", "1y")
+        return jsonify(get_stock_history(period))
+    except ImportError:
+        return jsonify({"error": "yfinance not installed"}), 503
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/trends")
 def trends():
     return jsonify(get_trend_data())

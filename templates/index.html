@@ -742,6 +742,72 @@
     .wow-tag-new  { background: #ecfdf5; color: var(--green); border: 1px solid #6ee7b7; border-radius: 12px; padding: 2px 10px; font-size: 0.75rem; font-weight: 600; }
     .wow-tag-gone { background: #fef2f2; color: var(--red);   border: 1px solid #fca5a5; border-radius: 12px; padding: 2px 10px; font-size: 0.75rem; font-weight: 600; }
 
+    /* ── Stock history card ── */
+    .stock-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      margin-bottom: 20px;
+      border-top: 3px solid #3b82f6;
+    }
+    .stock-card-header {
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 10px; margin-bottom: 16px;
+    }
+    .stock-period-btns { display: flex; gap: 6px; }
+    .stock-period-btn {
+      padding: 4px 12px; border-radius: 20px; border: 1px solid var(--border);
+      background: transparent; cursor: pointer; font-size: 0.78rem;
+      font-weight: 600; color: var(--muted); font-family: inherit;
+      transition: all 0.15s;
+    }
+    .stock-period-btn.active {
+      background: #3b82f6; color: #fff; border-color: #3b82f6;
+    }
+    .stock-period-btn:hover:not(.active) { border-color: #3b82f6; color: #3b82f6; }
+    .stock-legend {
+      display: flex; flex-wrap: wrap; gap: 14px;
+      margin-bottom: 12px; margin-top: 4px;
+    }
+    .stock-legend-item {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 0.78rem; font-weight: 600; color: #475569;
+    }
+    .stock-legend-dot {
+      width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+    }
+    .stock-stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 10px; margin-top: 16px;
+    }
+    .stock-stat-cell {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px; padding: 12px 14px;
+    }
+    .stock-stat-name {
+      font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.05em; color: var(--muted); margin-bottom: 6px;
+    }
+    .stock-stat-price {
+      font-size: 1.05rem; font-weight: 800; color: #1e293b;
+    }
+    .stock-stat-row {
+      display: flex; align-items: center; gap: 8px; margin-top: 4px;
+    }
+    .stock-stat-chg { font-size: 0.8rem; font-weight: 700; }
+    .stock-stat-chg.up  { color: var(--green); }
+    .stock-stat-chg.dn  { color: var(--red); }
+    .stock-stat-chg.flat{ color: var(--muted); }
+    .stock-stat-hl {
+      font-size: 0.72rem; color: var(--muted); margin-top: 4px;
+    }
+    .stock-note {
+      font-size: 0.7rem; color: var(--muted); margin-top: 10px; font-style: italic;
+    }
+
     /* ── Search ── */
     .search-box {
       display: flex; align-items: center;
@@ -999,6 +1065,24 @@
           {% endfor %}
         </div>
         <div style="height:110px"><canvas id="trendChart"></canvas></div>
+      </div>
+
+      <!-- Norwegian oil market stock chart -->
+      <div class="stock-card" id="stockCard">
+        <div class="stock-card-header">
+          <div class="sec-title" style="margin:0" id="lblStockChart">Norwegian Oil Market — Weekly Performance</div>
+          <div class="stock-period-btns">
+            <button class="stock-period-btn" data-p="3mo" onclick="loadStockHistory('3mo')">3M</button>
+            <button class="stock-period-btn" data-p="6mo" onclick="loadStockHistory('6mo')">6M</button>
+            <button class="stock-period-btn active" data-p="1y"  onclick="loadStockHistory('1y')">1Y</button>
+          </div>
+        </div>
+        <div class="stock-legend" id="stockLegend"></div>
+        <div style="position:relative;height:220px">
+          <canvas id="stockChart"></canvas>
+        </div>
+        <div class="stock-stats-grid" id="stockStats"></div>
+        <div class="stock-note" id="stockNote">Indexed to 100 at start of period. NOK stocks left axis · Brent (USD) right axis. Data via Yahoo Finance.</div>
       </div>
 
       <!-- Week-over-week -->
@@ -1697,6 +1781,127 @@
         }
       } catch {}
     }
+
+    // ── Stock history chart ──
+    let stockChartInst = null;
+    let currentStockPeriod = '1y';
+
+    async function loadStockHistory(period) {
+      currentStockPeriod = period;
+      // update active button
+      document.querySelectorAll('.stock-period-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.p === period);
+      });
+
+      try {
+        const res  = await fetch('/api/market/history?period=' + period);
+        const data = await res.json();
+        if (data.error || !data.labels || !data.series) return;
+        renderStockChart(data);
+      } catch {}
+    }
+
+    function renderStockChart(data) {
+      const { labels, series, stats } = data;
+
+      // Legend
+      const legendEl = document.getElementById('stockLegend');
+      if (legendEl) {
+        legendEl.innerHTML = series.map(s =>
+          `<div class="stock-legend-item">
+            <div class="stock-legend-dot" style="background:${s.color}"></div>
+            ${s.name} <span style="color:var(--muted);font-weight:400">(${s.currency})</span>
+          </div>`
+        ).join('');
+      }
+
+      // Datasets — NOK stocks on y (left), Brent on y1 (right)
+      const datasets = series.map(s => ({
+        label:           s.name,
+        data:            s.indexed,
+        borderColor:     s.color,
+        backgroundColor: s.color + '18',
+        fill:            false,
+        tension:         0.3,
+        borderWidth:     2,
+        pointRadius:     0,
+        pointHoverRadius:4,
+        yAxisID:         s.key === 'BRENT' ? 'y1' : 'y',
+      }));
+
+      if (stockChartInst) stockChartInst.destroy();
+      const ctx = document.getElementById('stockChart');
+      if (!ctx) return;
+
+      stockChartInst = new Chart(ctx, {
+        type: 'line',
+        data: { labels, datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: item => {
+                  const s = series[item.datasetIndex];
+                  const rawPrice = s.prices[item.dataIndex];
+                  return ` ${s.name}: ${s.currency} ${rawPrice?.toFixed(2)} (${item.parsed.y.toFixed(1)})`;
+                },
+                title: items => items[0]?.label || '',
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: {
+                font: { family: 'Inter', size: 10 }, color: '#94a3b8',
+                maxTicksLimit: 12,
+              },
+              border: { display: false },
+            },
+            y: {
+              position: 'left',
+              grid: { color: '#f1f5f9' },
+              ticks: { font: { family: 'Inter', size: 10 }, color: '#94a3b8',
+                callback: v => v.toFixed(0) },
+              border: { display: false },
+              title: { display: true, text: 'Indexed (base 100)', font: { size: 10 }, color: '#94a3b8' },
+            },
+            y1: {
+              position: 'right',
+              grid: { drawOnChartArea: false },
+              ticks: { font: { family: 'Inter', size: 10 }, color: '#ef4444',
+                callback: v => v.toFixed(0) },
+              border: { display: false },
+              title: { display: true, text: 'Brent (indexed)', font: { size: 10 }, color: '#ef4444' },
+            },
+          }
+        }
+      });
+
+      // Stats table
+      const statsEl = document.getElementById('stockStats');
+      if (statsEl && stats) {
+        statsEl.innerHTML = stats.map(s => {
+          const chgCls = s.change > 0 ? 'up' : s.change < 0 ? 'dn' : 'flat';
+          const sign   = s.change > 0 ? '+' : '';
+          return `<div class="stock-stat-cell">
+            <div class="stock-stat-name" style="color:${s.color}">${s.name}</div>
+            <div class="stock-stat-price">${s.currency} ${s.current?.toFixed(2) ?? '—'}</div>
+            <div class="stock-stat-row">
+              <span class="stock-stat-chg ${chgCls}">${sign}${s.change?.toFixed(2) ?? '—'}%</span>
+              <span style="font-size:0.7rem;color:var(--muted)">period</span>
+            </div>
+            <div class="stock-stat-hl">↑ ${s.currency} ${s.high?.toFixed(2)} &nbsp; ↓ ${s.currency} ${s.low?.toFixed(2)}</div>
+          </div>`;
+        }).join('');
+      }
+    }
+
+    loadStockHistory('1y');
 
     // ── Alerts modal ──
     function openAlertsModal() {
