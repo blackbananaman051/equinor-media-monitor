@@ -10,7 +10,7 @@ MODEL = "claude-opus-4-5"
 
 SYSTEM_PROMPT = (
     "You are an intelligence analyst covering the Norwegian oil and gas industry. "
-    "Your job is to monitor global energy news daily and produce a clear, concise briefing "
+    "Your job is to monitor global energy news weekly and produce a clear, concise briefing "
     "about what matters for Norway's oil and gas sector. This includes companies like Equinor, "
     "Aker BP, Vår Energi, TotalEnergies Norway, and the Norwegian government's petroleum policy. "
     "Consider how news affects oil prices, production on the Norwegian continental shelf, "
@@ -81,7 +81,7 @@ def synthesize_briefing(client, analyzed_articles):
     )
 
     prompt = f"""Based on these {len(analyzed_articles)} analyzed news articles about the Norwegian oil and gas industry,
-produce a comprehensive daily intelligence briefing. Return a JSON object with these fields:
+produce a comprehensive weekly intelligence briefing. Return a JSON object with these fields:
 - date: today's date in YYYY-MM-DD format
 - headline: one-sentence summary of the most important development for Norwegian oil today
 - situation_summary: 3-4 sentence overview of what happened in Norwegian and global oil & energy markets
@@ -136,8 +136,9 @@ def run_full_analysis(articles):
         merged = {**article, **result}
         analyzed.append(merged)
 
-    print("  Synthesizing daily briefing...")
+    print("  Synthesizing weekly briefing...")
     briefing = synthesize_briefing(client, analyzed)
+    briefing["date"] = datetime.utcnow().strftime("%Y-%m-%d")
     briefing["articles"] = analyzed
     briefing["articles_count"] = len(analyzed)
     briefing["relevant_count"] = sum(
