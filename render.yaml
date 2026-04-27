@@ -3,7 +3,7 @@ services:
     name: equinor-media-monitor
     runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app --workers 2 --timeout 120 --bind 0.0.0.0:$PORT
+    startCommand: gunicorn app:app --config gunicorn.conf.py --bind 0.0.0.0:$PORT
     envVars:
       - key: ANTHROPIC_API_KEY
         sync: false

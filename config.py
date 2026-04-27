@@ -5,7 +5,9 @@ from pathlib import Path
 if os.name == "nt":
     CONFIG_DIR = Path.home() / "AppData" / "Roaming" / "EquinorMediaMonitor"
 else:
-    CONFIG_DIR = Path.home() / ".equinor-media-monitor"
+    # On deployed servers (Render), store alongside reports on the persistent disk
+    _reports = os.environ.get("REPORTS_DIR")
+    CONFIG_DIR = Path(_reports) if _reports else Path.home() / ".equinor-media-monitor"
 
 CONFIG_FILE = CONFIG_DIR / "config.json"
 
