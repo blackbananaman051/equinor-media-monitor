@@ -863,7 +863,7 @@
     @media print {
       nav, .market-bar, #runBtn, #langBtn, .nav-btn, .filter-tabs,
       .search-box, .search-results, #progressPanel, #alertsModal,
-      #adminModal, #emptyState, footer, .es-run-btn { display: none !important; }
+      #emptyState, footer, .es-run-btn { display: none !important; }
       body { background: white !important; font-size: 11pt; }
       main { padding: 0 !important; max-width: 100% !important; }
       .metric-card, .briefing-card, .insight-card, .sec-card,
@@ -1064,24 +1064,6 @@
     </div>
   </div>
 
-  <!-- Admin modal -->
-  <div class="modal-overlay" id="adminModal" role="dialog" aria-modal="true">
-    <div class="modal">
-      <h2>Run Analysis</h2>
-      <p class="modal-sub">This triggers a live news fetch + Claude AI analysis (~1–2 min). Enter the admin password to continue.</p>
-      <label for="adminPwdInput">Admin password</label>
-      <input type="password" id="adminPwdInput" placeholder="Enter password" autocomplete="current-password" />
-      <div id="modalError"></div>
-      <div class="modal-btns">
-        <button id="modalCancel" onclick="closeModal()">Cancel</button>
-        <button id="modalConfirm" onclick="submitAnalysis()">
-          <span class="spinner" id="modalSpinner"></span>
-          <span id="modalBtnText">Run Analysis</span>
-        </button>
-      </div>
-      <div class="modal-note">Reports are public — all visitors see the same weekly brief.</div>
-    </div>
-  </div>
 
   <!-- Navigation -->
   <nav>
@@ -1351,7 +1333,6 @@
   </footer>
 
   <script>
-    const ADMIN_ENABLED = {{ 'true' if admin_enabled else 'false' }};
 
     // ── Charts ──
     let sentimentChart = null;
@@ -1441,43 +1422,16 @@
 
     // ── Run logic ──
     function handleRunClick() {
-      const today      = new Date().toISOString().slice(0, 10);
-      const chipText   = (document.getElementById('reportDateChip')?.textContent || '').trim();
+      const today    = new Date().toISOString().slice(0, 10);
+      const chipText = (document.getElementById('reportDateChip')?.textContent || '').trim();
       if (chipText === today) {
         if (!confirm(`A report for today (${today}) already exists.\n\nRe-run analysis? This will use API credits.`)) return;
       }
-      if (ADMIN_ENABLED) { openModal(); } else { runWithStream({}); }
-    }
-
-    // ── Modal ──
-    function openModal() {
-      document.getElementById('adminModal').classList.add('open');
-      setTimeout(() => document.getElementById('adminPwdInput').focus(), 50);
-      document.getElementById('modalError').textContent = '';
-      document.getElementById('adminPwdInput').value = '';
-    }
-    function closeModal() {
-      document.getElementById('adminModal').classList.remove('open');
-    }
-    document.getElementById('adminModal').addEventListener('click', function(e) {
-      if (e.target === this) closeModal();
-    });
-    document.getElementById('adminPwdInput').addEventListener('keydown', function(e) {
-      if (e.key === 'Enter') submitAnalysis();
-      if (e.key === 'Escape') closeModal();
-    });
-    function submitAnalysis() {
-      const pwd = document.getElementById('adminPwdInput').value.trim();
-      if (!pwd) {
-        document.getElementById('modalError').textContent = 'Please enter the admin password.';
-        return;
-      }
-      closeModal();
-      runWithStream({ 'X-Admin-Password': pwd });
+      runWithStream({});
     }
 
     // ── Streaming analysis ──
-    async function runWithStream(extraHeaders) {
+    async function runWithStream() {
       const btn = document.getElementById('runBtn');
       const sp  = document.getElementById('spinner');
       const bt  = document.getElementById('runBtnText');
@@ -1491,13 +1445,10 @@
       try {
         const res = await fetch('/analyze/stream', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...extraHeaders },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({}),
         });
 
-        if (res.status === 401) {
-          throw new Error('Incorrect admin password.');
-        }
         if (!res.ok) {
           const d = await res.json().catch(() => ({}));
           throw new Error(d.error || `Server error ${res.status}`);

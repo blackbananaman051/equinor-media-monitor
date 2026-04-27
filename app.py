@@ -5,7 +5,6 @@ import threading
 import webbrowser
 import time
 from datetime import datetime
-from functools import wraps
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from flask import Flask, render_template, jsonify, request, redirect, Response, stream_with_context
 from dotenv import load_dotenv
@@ -39,21 +38,6 @@ from scheduler import start_scheduler
 
 app = Flask(__name__, template_folder=os.path.join(BASE_DIR, "templates"))
 
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
-
-
-def require_admin(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        if ADMIN_PASSWORD:
-            provided = (
-                request.headers.get("X-Admin-Password")
-                or (request.get_json(silent=True) or {}).get("admin_password", "")
-            )
-            if provided != ADMIN_PASSWORD:
-                return jsonify({"error": "Unauthorized."}), 401
-        return f(*args, **kwargs)
-    return decorated
 
 
 @app.route("/")
@@ -70,7 +54,6 @@ def index():
         report=report,
         report_dates=report_dates,
         today=today,
-        admin_enabled=bool(ADMIN_PASSWORD),
         trend_data=trend_data,
         email_configured=bool(email_cfg.get("enabled")),
     )
@@ -98,7 +81,6 @@ def save_config_route():
 
 
 @app.route("/analyze", methods=["POST"])
-@require_admin
 def analyze():
     # Allow callers to supply their own API keys in request headers.
     # This lets anyone use a shared/hosted deployment with their own keys.
@@ -136,15 +118,6 @@ def analyze():
 
 @app.route("/analyze/stream", methods=["POST"])
 def analyze_stream():
-    # All request-context reads must happen here, outside the generator.
-    if ADMIN_PASSWORD:
-        provided = (
-            request.headers.get("X-Admin-Password")
-            or (request.get_json(silent=True) or {}).get("admin_password", "")
-        )
-        if provided != ADMIN_PASSWORD:
-            return jsonify({"error": "Unauthorized."}), 401
-
     anthropic_key = (request.headers.get("X-Anthropic-Key") or "").strip() or os.getenv("ANTHROPIC_API_KEY", "")
     news_key      = (request.headers.get("X-News-Key")      or "").strip() or os.getenv("NEWS_API_KEY", "")
 
