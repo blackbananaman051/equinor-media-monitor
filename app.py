@@ -25,7 +25,7 @@ os.makedirs(REPORTS_DIR, exist_ok=True)
 load_dotenv()
 
 # Inject stored API keys into os.environ so fetcher/analyzer can read them
-from config import get_key, is_configured, save_config as _save_config
+from config import get_key, is_configured, save_config as _save_config, get_email_config, save_email_config
 
 for _key in ("ANTHROPIC_API_KEY", "NEWS_API_KEY"):
     _val = get_key(_key)
@@ -34,7 +34,7 @@ for _key in ("ANTHROPIC_API_KEY", "NEWS_API_KEY"):
 
 from fetcher import fetch_articles
 from analyzer import run_full_analysis, analyze_article, synthesize_briefing, get_client as get_analyzer_client
-from reporter import save_report, load_report, load_latest_report, list_report_dates
+from reporter import save_report, load_report, load_latest_report, list_report_dates, get_trend_data
 from scheduler import start_scheduler
 
 app = Flask(__name__, template_folder=os.path.join(BASE_DIR, "templates"))
@@ -60,16 +60,19 @@ def require_admin(f):
 def index():
     if not is_configured():
         return redirect("/setup")
-    today = datetime.utcnow().strftime("%Y-%m-%d")
-    report = load_report(today) or load_latest_report()
+    today        = datetime.utcnow().strftime("%Y-%m-%d")
+    report       = load_report(today) or load_latest_report()
     report_dates = list_report_dates()
-    admin_enabled = bool(ADMIN_PASSWORD)
+    trend_data   = get_trend_data()
+    email_cfg    = get_email_config()
     return render_template(
         "index.html",
         report=report,
         report_dates=report_dates,
         today=today,
-        admin_enabled=admin_enabled,
+        admin_enabled=bool(ADMIN_PASSWORD),
+        trend_data=trend_data,
+        email_configured=bool(email_cfg.get("enabled")),
     )
 
 
@@ -220,6 +223,100 @@ def latest_report():
     if not report:
         return jsonify({"error": "No reports yet."}), 404
     return jsonify(report)
+
+
+@app.route("/api/market")
+def market_data():
+    try:
+        from market import get_market_data
+        return jsonify(get_market_data())
+    except ImportError:
+        return jsonify({"error": "yfinance not installed"}), 503
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/trends")
+def trends():
+    return jsonify(get_trend_data())
+
+
+@app.route("/save-email-config", methods=["POST"])
+def save_email_config_route():
+    data = request.get_json() or {}
+    save_email_config(data)
+    return jsonify({"success": True})
+
+
+@app.route("/test-email", methods=["POST"])
+def test_email():
+    from emailer import send_digest
+    from reporter import load_latest_report as _latest
+    report = _latest()
+    if not report:
+        return jsonify({"error": "No report to send — run an analysis first."}), 400
+    email_cfg = get_email_config()
+    ok, msg   = send_digest(report, email_cfg)
+    if ok:
+        return jsonify({"success": True, "message": msg})
+    return jsonify({"error": msg}), 400
+
+
+@app.route("/save-alert-config", methods=["POST"])
+def save_alert_config_route():
+    from alerts import save_alert_config
+    data = request.get_json() or {}
+    save_alert_config(data)
+    return jsonify({"success": True})
+
+
+COMPANY_SLUGS = {
+    "equinor":       ("Equinor",        ["equinor", "statoil"]),
+    "aker-bp":       ("Aker BP",        ["aker bp", "akrbp"]),
+    "var-energi":    ("Vår Energi",     ["vår energi", "var energi"]),
+    "petoro":        ("Petoro",         ["petoro"]),
+    "lundin":        ("Lundin",         ["lundin"]),
+    "totalenergies": ("TotalEnergies",  ["totalenergies", "total norway"]),
+}
+
+
+@app.route("/company/<slug>")
+def company_page(slug):
+    if slug not in COMPANY_SLUGS:
+        return "Company not found", 404
+
+    display_name, search_terms = COMPANY_SLUGS[slug]
+    articles        = []
+    sentiment_trend = []
+
+    for date in list_report_dates()[:16]:
+        report = load_report(date)
+        if not report:
+            continue
+        day_articles = [
+            {**a, "report_date": date}
+            for a in report.get("articles", [])
+            if any(t in (a.get("title","") + str(a.get("tags",""))).lower() for t in search_terms)
+        ]
+        articles.extend(day_articles)
+        if day_articles:
+            pos  = sum(1 for a in day_articles if a.get("sentiment") == "positive")
+            neg  = sum(1 for a in day_articles if a.get("sentiment") == "negative")
+            sentiment_trend.append({
+                "date": date, "positive": pos,
+                "negative": neg, "neutral": len(day_articles) - pos - neg,
+                "total": len(day_articles),
+            })
+
+    articles.sort(key=lambda a: a.get("report_date",""), reverse=True)
+    return render_template(
+        "company.html",
+        company_name=display_name,
+        company_slug=slug,
+        articles=articles[:60],
+        sentiment_trend=list(reversed(sentiment_trend[-8:])),
+        today=datetime.utcnow().strftime("%Y-%m-%d"),
+    )
 
 
 def find_free_port(start=5000):

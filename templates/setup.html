@@ -256,7 +256,86 @@
     </div>
   </main>
 
+  <!-- Email config card -->
+  <div style="max-width:540px;margin:0 auto 24px;padding:0 20px;">
+    <div style="background:white;border-radius:14px;padding:36px 48px;border:1px solid #e2e8f0;box-shadow:0 4px 24px rgba(0,0,0,0.07);">
+      <div style="display:inline-block;background:#eff6ff;color:#2563eb;font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;padding:4px 12px;border-radius:20px;margin-bottom:14px;">Email Digest (Optional)</div>
+      <h2 style="font-size:1.1rem;font-weight:800;color:#0f172a;margin-bottom:8px;">Weekly email briefing</h2>
+      <p style="font-size:0.85rem;color:#64748b;margin-bottom:24px;line-height:1.6;">Receive the weekly report automatically in your inbox. Uses Gmail App Password (recommended) or any SMTP server.</p>
+
+      <div style="margin-bottom:16px;">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+          <input type="checkbox" id="emailEnabled" style="width:16px;height:16px;accent-color:#2563eb;" />
+          <span style="font-size:0.85rem;font-weight:600;color:#0f172a;">Enable weekly digest</span>
+        </label>
+      </div>
+
+      <div id="emailFields">
+        <div style="margin-bottom:16px;">
+          <label style="display:block;font-size:0.8rem;font-weight:600;color:#0f172a;margin-bottom:6px;">Send to (your email)</label>
+          <input type="email" id="emailTo" placeholder="you@example.com" style="width:100%;padding:10px 14px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.9rem;font-family:'Inter',sans-serif;outline:none;" />
+        </div>
+        <div style="display:grid;grid-template-columns:1fr auto;gap:10px;margin-bottom:16px;">
+          <div>
+            <label style="display:block;font-size:0.8rem;font-weight:600;color:#0f172a;margin-bottom:6px;">SMTP Host</label>
+            <input type="text" id="smtpHost" value="smtp.gmail.com" style="width:100%;padding:10px 14px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.9rem;font-family:'Inter',sans-serif;outline:none;" />
+          </div>
+          <div>
+            <label style="display:block;font-size:0.8rem;font-weight:600;color:#0f172a;margin-bottom:6px;">Port</label>
+            <input type="number" id="smtpPort" value="465" style="width:80px;padding:10px 14px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.9rem;font-family:'Inter',sans-serif;outline:none;" />
+          </div>
+        </div>
+        <div style="margin-bottom:16px;">
+          <label style="display:block;font-size:0.8rem;font-weight:600;color:#0f172a;margin-bottom:6px;">SMTP Username (your Gmail address)</label>
+          <input type="email" id="smtpUser" placeholder="you@gmail.com" style="width:100%;padding:10px 14px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.9rem;font-family:'Inter',sans-serif;outline:none;" />
+        </div>
+        <div style="margin-bottom:8px;">
+          <label style="display:block;font-size:0.8rem;font-weight:600;color:#0f172a;margin-bottom:6px;">App Password</label>
+          <input type="password" id="smtpPass" placeholder="xxxx xxxx xxxx xxxx" style="width:100%;padding:10px 14px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.9rem;font-family:monospace;outline:none;" />
+        </div>
+        <p style="font-size:0.75rem;color:#94a3b8;margin-bottom:20px;line-height:1.5;">
+          Using Gmail? Go to <strong>myaccount.google.com → Security → 2-Step Verification → App passwords</strong> and create one for "Mail".
+        </p>
+        <div style="display:flex;gap:10px;">
+          <button onclick="saveEmailConfig()" style="flex:1;background:#2563eb;color:white;border:none;padding:11px;border-radius:8px;font-size:0.9rem;font-weight:700;font-family:'Inter',sans-serif;cursor:pointer;">Save email settings</button>
+          <button onclick="testEmail()" style="background:#f1f5f9;color:#0f172a;border:none;padding:11px 16px;border-radius:8px;font-size:0.9rem;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;" id="testBtn">Send test</button>
+        </div>
+        <div id="emailMsg" style="margin-top:10px;font-size:0.82rem;min-height:16px;"></div>
+      </div>
+    </div>
+  </div>
+
   <footer>Norwegian Oil Intelligence — powered by Claude AI + NewsAPI</footer>
+
+  <script>
+    async function saveEmailConfig() {
+      const cfg = {
+        enabled:       document.getElementById('emailEnabled').checked,
+        to_email:      document.getElementById('emailTo').value.trim(),
+        smtp_host:     document.getElementById('smtpHost').value.trim(),
+        smtp_port:     parseInt(document.getElementById('smtpPort').value) || 465,
+        smtp_user:     document.getElementById('smtpUser').value.trim(),
+        smtp_password: document.getElementById('smtpPass').value.trim(),
+        send_always:   true,
+      };
+      const res  = await fetch('/save-email-config', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(cfg) });
+      const data = await res.json();
+      const msg  = document.getElementById('emailMsg');
+      msg.style.color = res.ok ? '#059669' : '#dc2626';
+      msg.textContent = res.ok ? 'Email settings saved.' : (data.error || 'Failed to save.');
+    }
+
+    async function testEmail() {
+      const btn = document.getElementById('testBtn');
+      btn.textContent = 'Sending...'; btn.disabled = true;
+      const res  = await fetch('/test-email', { method:'POST' });
+      const data = await res.json();
+      const msg  = document.getElementById('emailMsg');
+      msg.style.color = res.ok ? '#059669' : '#dc2626';
+      msg.textContent = res.ok ? 'Test email sent! Check your inbox.' : (data.error || 'Failed.');
+      btn.textContent = 'Send test'; btn.disabled = false;
+    }
+  </script>
 
   <script>
     {% if configured %}

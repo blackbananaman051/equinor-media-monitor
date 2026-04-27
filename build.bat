@@ -13,7 +13,7 @@ if errorlevel 1 (
 
 echo.
 echo Building .exe (this takes 2-3 minutes)...
-py -m PyInstaller equinor_monitor.spec --noconfirm
+py -m PyInstaller equinor_monitor.spec --noconfirm --clean --distpath "%USERPROFILE%\Desktop\EquinorApp" --workpath "%TEMP%\equinor_build"
 if errorlevel 1 (
     echo ERROR: Build failed. See output above.
     pause
@@ -23,7 +23,7 @@ if errorlevel 1 (
 echo.
 echo ============================================
 echo  Build complete!
-echo  Your app is at: dist\EquinorMediaMonitor.exe
+echo  Your app is at: %USERPROFILE%\Desktop\EquinorApp\EquinorMediaMonitor.exe
 echo  Double-click it to run.
 echo ============================================
 pause

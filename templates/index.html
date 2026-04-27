@@ -644,6 +644,82 @@
       min-height: 16px;
     }
 
+    /* ── Market ticker ── */
+    .market-bar {
+      background: #081420;
+      color: white;
+      padding: 0 28px;
+      height: 34px;
+      display: flex;
+      align-items: center;
+      gap: 0;
+      overflow-x: auto;
+      overflow-y: hidden;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      scrollbar-width: none;
+    }
+    .market-bar::-webkit-scrollbar { display: none; }
+    .ticker-item {
+      display: flex; align-items: center; gap: 7px;
+      padding: 0 16px; height: 100%;
+      border-right: 1px solid rgba(255,255,255,0.07);
+      font-size: 0.76rem; flex-shrink: 0;
+    }
+    .ticker-name  { color: rgba(255,255,255,0.45); font-weight: 600; }
+    .ticker-price { color: white; font-weight: 700; }
+    .ticker-chg.up   { color: #34d399; }
+    .ticker-chg.dn   { color: #f87171; }
+    .ticker-chg.flat { color: rgba(255,255,255,0.35); }
+    .ticker-ts { margin-left: auto; color: rgba(255,255,255,0.25); font-size: 0.7rem; padding-left: 20px; flex-shrink: 0; }
+    .ticker-loading { color: rgba(255,255,255,0.3); font-size: 0.75rem; font-style: italic; }
+
+    /* ── Trend section ── */
+    .trend-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      margin-bottom: 20px;
+    }
+    .trend-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 16px; }
+    .trend-chip {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 10px; border-radius: 12px;
+      font-size: 0.72rem; font-weight: 600; cursor: default;
+    }
+
+    /* ── Alerts modal ── */
+    .toggle-row {
+      display: flex; align-items: center;
+      justify-content: space-between;
+      padding: 10px 0; gap: 16px;
+    }
+    .toggle-row + .toggle-row { border-top: 1px solid var(--border); }
+    .toggle-label { font-size: 0.84rem; font-weight: 600; }
+    .toggle-hint  { font-size: 0.74rem; color: var(--muted); margin-top: 2px; }
+    .tswitch { position: relative; width: 40px; height: 22px; flex-shrink: 0; cursor: pointer; }
+    .tswitch input { opacity: 0; width: 0; height: 0; position: absolute; }
+    .ttrack {
+      position: absolute; inset: 0;
+      background: #e2e8f0; border-radius: 11px;
+      transition: background 0.2s;
+    }
+    .ttrack::before {
+      content: ''; position: absolute;
+      left: 3px; top: 3px; width: 16px; height: 16px;
+      border-radius: 50%; background: white;
+      transition: transform 0.2s;
+    }
+    .tswitch input:checked + .ttrack { background: var(--blue); }
+    .tswitch input:checked + .ttrack::before { transform: translateX(18px); }
+
+    /* ── Company links ── */
+    .co-link {
+      color: var(--blue); text-decoration: none; font-weight: 600;
+      border-bottom: 1px dotted #93c5fd;
+    }
+    .co-link:hover { border-bottom-style: solid; }
+
     /* ── Responsive tweaks ── */
     @media (max-width: 640px) {
       nav { padding: 0 16px; gap: 12px; }
@@ -654,6 +730,40 @@
   </style>
 </head>
 <body>
+  <!-- Alerts modal -->
+  <div class="modal-overlay" id="alertsModal" role="dialog">
+    <div class="modal">
+      <h2>Alert Settings</h2>
+      <p class="modal-sub">Get notified when key thresholds are met after each analysis.</p>
+      <div class="toggle-row">
+        <div>
+          <div class="toggle-label">Browser notifications</div>
+          <div class="toggle-hint">Notify when new report is ready</div>
+        </div>
+        <label class="tswitch"><input type="checkbox" id="alBrowser" /><span class="ttrack"></span></label>
+      </div>
+      <div class="toggle-row">
+        <div><div class="toggle-label">Alert on negative sentiment</div></div>
+        <label class="tswitch"><input type="checkbox" id="alNeg" /><span class="ttrack"></span></label>
+      </div>
+      <div class="toggle-row">
+        <div><div class="toggle-label">Alert on falling oil price</div></div>
+        <label class="tswitch"><input type="checkbox" id="alOil" /><span class="ttrack"></span></label>
+      </div>
+      <div class="toggle-row">
+        <div>
+          <div class="toggle-label">Critical: both negative + falling</div>
+          <div class="toggle-hint">Recommended — highest signal</div>
+        </div>
+        <label class="tswitch"><input type="checkbox" id="alBoth" checked /><span class="ttrack"></span></label>
+      </div>
+      <div class="modal-btns" style="margin-top:20px;">
+        <button id="modalCancel2" class="nav-btn" onclick="closeAlertsModal()" style="color:var(--text);">Cancel</button>
+        <button onclick="saveAlerts()" style="background:var(--blue);color:white;border:none;padding:9px 20px;border-radius:8px;font-size:0.86rem;font-weight:700;font-family:'Inter',sans-serif;cursor:pointer;">Save</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Admin modal -->
   <div class="modal-overlay" id="adminModal" role="dialog" aria-modal="true">
     <div class="modal">
@@ -689,7 +799,9 @@
         {% endfor %}
       </select>
       {% endif %}
+      <span style="color:rgba(255,255,255,0.35);font-size:0.78rem;" id="todayDisplay">{{ today }}</span>
       <button class="nav-btn" id="langBtn" onclick="toggleLang()">🇳🇴 Norsk</button>
+      <button class="nav-btn" onclick="openAlertsModal()" title="Alert settings">🔔 Alerts</button>
       <a href="/setup" class="nav-btn" id="settingsLink">Settings</a>
       <button id="runBtn" onclick="handleRunClick()">
         <span class="spinner" id="spinner"></span>
@@ -697,6 +809,11 @@
       </button>
     </div>
   </nav>
+
+  <!-- Market ticker -->
+  <div class="market-bar" id="marketBar">
+    <span class="ticker-loading">Loading market data…</span>
+  </div>
 
   <main>
     <div id="alertBanner" style="display:none" class="alert"></div>
@@ -789,6 +906,21 @@
             <canvas id="relevanceChart"></canvas>
           </div>
         </div>
+      </div>
+
+      <!-- Historical trend -->
+      <div class="trend-card" id="trendCard" {% if not trend_data or trend_data|length < 2 %}style="display:none"{% endif %}>
+        <div class="sec-title" id="lblTrends">Historical Trends</div>
+        <div class="trend-chips" id="trendChips">
+          {% for t in trend_data %}
+          {% set c = '#059669' if t.sentiment == 'positive' else '#dc2626' if t.sentiment == 'negative' else '#94a3b8' %}
+          <span class="trend-chip" title="{{ t.date }}: {{ t.sentiment }}"
+                style="background:{{ c }}20;color:{{ c }};">
+            {{ t.date[5:] }} {{ '↑' if t.sentiment == 'positive' else '↓' if t.sentiment == 'negative' else '→' }}
+          </span>
+          {% endfor %}
+        </div>
+        <div style="height:110px"><canvas id="trendChart"></canvas></div>
       </div>
 
       <!-- Briefing panel -->
@@ -1134,8 +1266,8 @@
             <span class="ar-dot ${a.sentiment}"></span>
             <a class="ar-title" href="${esc(a.url)}" target="_blank" rel="noopener">${esc(a.title)}</a>
           </div>
-          <p class="ar-summary">${esc(a.summary)}</p>
-          <p class="ar-reason">${esc(a.relevance_reason)}</p>
+          <p class="ar-summary">${linkifyCompanies(a.summary)}</p>
+          <p class="ar-reason">${linkifyCompanies(a.relevance_reason)}</p>
           <div class="ar-meta">
             <span class="rel-chip ${a.equinor_relevance}">${(a.equinor_relevance||'').toUpperCase()}</span>
             <span>${esc(a.source)}</span>
@@ -1150,6 +1282,8 @@
       filterArticles('all', document.getElementById('ftAll'));
 
       if (r.articles && r.articles.length) initCharts(r.articles);
+      checkBrowserAlerts(r);
+      refreshTrend();
     }
 
     // ── Filter ──
@@ -1294,6 +1428,197 @@
     {% if report and report.articles %}
     initCharts({{ report.articles | tojson }});
     {% endif %}
+
+    // ── Today's date display ──
+    document.getElementById('todayDisplay').textContent = new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
+
+    // ── Market ticker ──
+    async function loadMarketData() {
+      try {
+        const res  = await fetch('/api/market');
+        const data = await res.json();
+        if (data.error) return;
+
+        const order = ['EQNR','AKRBP','VAR','BRENT','NOKUSD'];
+        let html = '';
+        for (const key of order) {
+          const d = data[key];
+          if (!d) continue;
+          let priceStr = '—';
+          let chgStr   = '';
+          let chgClass = 'flat';
+          if (d.price !== null) {
+            const decimals = key === 'NOKUSD' ? 4 : 2;
+            priceStr = (d.currency ? d.currency + ' ' : '') + d.price.toFixed(decimals);
+            if (d.change !== null) {
+              chgClass  = d.change > 0 ? 'up' : d.change < 0 ? 'dn' : 'flat';
+              const sign = d.change > 0 ? '+' : '';
+              chgStr = `${sign}${d.change.toFixed(2)}%`;
+            }
+          }
+          html += `<div class="ticker-item">
+            <span class="ticker-name">${d.name}</span>
+            <span class="ticker-price">${priceStr}</span>
+            ${chgStr ? `<span class="ticker-chg ${chgClass}">${chgStr}</span>` : ''}
+          </div>`;
+        }
+        html += `<span class="ticker-ts">Last close · ${data._ts || ''}</span>`;
+        document.getElementById('marketBar').innerHTML = html;
+      } catch {}
+    }
+    loadMarketData();
+
+    // ── Trend chart ──
+    let trendChart = null;
+    const INITIAL_TREND = {{ trend_data | tojson }};
+
+    function renderTrendChart(trendData) {
+      if (!trendData || trendData.length < 2) return;
+
+      const labels  = trendData.map(d => d.date.slice(5));
+      const sentMap = { positive: 1, neutral: 0, negative: -1 };
+      const sentVals = trendData.map(d => sentMap[d.sentiment] ?? 0);
+      const ptColors = sentVals.map(v => v > 0 ? '#059669' : v < 0 ? '#dc2626' : '#94a3b8');
+
+      if (trendChart) trendChart.destroy();
+      const ctx = document.getElementById('trendChart');
+      if (!ctx) return;
+      trendChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Sentiment',
+            data: sentVals,
+            borderColor: '#2563eb',
+            backgroundColor: 'rgba(37,99,235,0.07)',
+            fill: true, tension: 0.4,
+            pointRadius: 6,
+            pointBackgroundColor: ptColors,
+            pointBorderColor: 'white',
+            pointBorderWidth: 2,
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: ctx => {
+              const v = ctx.parsed.y;
+              return ' ' + (v > 0 ? 'Positive' : v < 0 ? 'Negative' : 'Neutral');
+            }}}
+          },
+          scales: {
+            x: { grid: { display: false }, ticks: { font: { family: 'Inter', size: 10 }, color: '#94a3b8' }, border: { display: false } },
+            y: { min: -1.5, max: 1.5, grid: { color: '#f1f5f9' },
+              ticks: { font: { family: 'Inter', size: 10 }, color: '#94a3b8',
+                callback: v => v === 1 ? 'Positive' : v === -1 ? 'Negative' : v === 0 ? 'Neutral' : '',
+                stepSize: 1 },
+              border: { display: false } },
+          }
+        }
+      });
+
+      // Update chips
+      const chips = trendData.map(d => {
+        const c = d.sentiment === 'positive' ? '#059669' : d.sentiment === 'negative' ? '#dc2626' : '#94a3b8';
+        const arr = d.sentiment === 'positive' ? '↑' : d.sentiment === 'negative' ? '↓' : '→';
+        return `<span class="trend-chip" title="${d.date}: ${d.sentiment}" style="background:${c}20;color:${c};">${d.date.slice(5)} ${arr}</span>`;
+      }).join('');
+      const el = document.getElementById('trendChips');
+      if (el) el.innerHTML = chips;
+    }
+
+    if (INITIAL_TREND.length >= 2) renderTrendChart(INITIAL_TREND);
+
+    async function refreshTrend() {
+      try {
+        const res  = await fetch('/api/trends');
+        const data = await res.json();
+        if (Array.isArray(data) && data.length >= 2) {
+          document.getElementById('trendCard').style.display = 'block';
+          renderTrendChart(data);
+        }
+      } catch {}
+    }
+
+    // ── Alerts modal ──
+    function openAlertsModal() {
+      const cfg = loadAlertCfg();
+      document.getElementById('alBrowser').checked = !!cfg.browser;
+      document.getElementById('alNeg').checked     = !!cfg.neg;
+      document.getElementById('alOil').checked     = !!cfg.oil;
+      document.getElementById('alBoth').checked    = cfg.both !== false;
+      document.getElementById('alertsModal').classList.add('open');
+    }
+    function closeAlertsModal() {
+      document.getElementById('alertsModal').classList.remove('open');
+    }
+    document.getElementById('alertsModal').addEventListener('click', function(e) {
+      if (e.target === this) closeAlertsModal();
+    });
+
+    async function saveAlerts() {
+      const browserOn = document.getElementById('alBrowser').checked;
+      if (browserOn && Notification.permission === 'default') {
+        await Notification.requestPermission();
+      }
+      const cfg = {
+        browser: browserOn,
+        neg:     document.getElementById('alNeg').checked,
+        oil:     document.getElementById('alOil').checked,
+        both:    document.getElementById('alBoth').checked,
+      };
+      saveAlertCfg(cfg);
+      // Also persist server-side for email alerts
+      await fetch('/save-alert-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: true, alert_negative: cfg.neg, alert_falling_oil: cfg.oil, alert_both: cfg.both }),
+      }).catch(() => {});
+      closeAlertsModal();
+    }
+
+    function loadAlertCfg() {
+      try { return JSON.parse(localStorage.getItem('alertCfg') || '{"both":true}'); } catch { return { both: true }; }
+    }
+    function saveAlertCfg(cfg) { localStorage.setItem('alertCfg', JSON.stringify(cfg)); }
+
+    function checkBrowserAlerts(report) {
+      if (Notification.permission !== 'granted') return;
+      const cfg = loadAlertCfg();
+      if (!cfg.browser) return;
+      const s = report.market_sentiment, t = report.oil_price_trend;
+      let msg = null;
+      if (cfg.both && s === 'negative' && t === 'falling')
+        msg = `CRITICAL: Negative sentiment + falling oil. Risk: ${(report.top_risk||'').slice(0,80)}`;
+      else if (cfg.neg && s === 'negative')
+        msg = `Negative sentiment: ${(report.headline||'').slice(0,90)}`;
+      else if (cfg.oil && t === 'falling')
+        msg = `Oil prices falling. ${(report.headline||'').slice(0,90)}`;
+      if (msg) new Notification('Norwegian Oil Intelligence', { body: msg });
+    }
+
+    // ── Company links ──
+    const COMPANIES = {
+      'Equinor':       '/company/equinor',
+      'Aker BP':       '/company/aker-bp',
+      'Vår Energi':    '/company/var-energi',
+      'Var Energi':    '/company/var-energi',
+      'Petoro':        '/company/petoro',
+      'Lundin':        '/company/lundin',
+      'TotalEnergies': '/company/totalenergies',
+    };
+    function linkifyCompanies(text) {
+      if (!text) return '';
+      let r = esc(text);
+      for (const [name, url] of Object.entries(COMPANIES)) {
+        const safe = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        r = r.replace(new RegExp(`\\b${safe}\\b`, 'g'),
+          `<a href="${url}" class="co-link">${name}</a>`);
+      }
+      return r;
+    }
   </script>
 </body>
 </html>

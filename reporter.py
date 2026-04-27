@@ -42,3 +42,20 @@ def list_report_dates():
         [f.replace(".json", "") for f in os.listdir(REPORTS_DIR) if f.endswith(".json")],
         reverse=True,
     )
+
+
+def get_trend_data(n=8):
+    dates  = list_report_dates()[:n]
+    trends = []
+    for date in reversed(dates):
+        report = load_report(date)
+        if not report:
+            continue
+        trends.append({
+            "date":           date,
+            "sentiment":      report.get("market_sentiment", "neutral"),
+            "oil_trend":      report.get("oil_price_trend",  "stable"),
+            "articles_count": report.get("articles_count",   0),
+            "relevant_count": report.get("relevant_count",   0),
+        })
+    return trends

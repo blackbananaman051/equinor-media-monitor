@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ company_name }} — Norwegian Oil Intelligence</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --navy: #0d1b2a; --blue: #2563eb; --bg: #f1f4f8; --card: #fff;
+      --border: #e2e8f0; --text: #0f172a; --muted: #64748b;
+      --green: #059669; --red: #dc2626; --radius: 10px;
+    }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); }
+
+    nav {
+      background: var(--navy); color: white; padding: 0 28px;
+      display: flex; align-items: center; height: 58px; gap: 12px;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .nav-logo { width: 32px; height: 32px; background: var(--blue); border-radius: 7px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; flex-shrink: 0; }
+    .nav-title { font-size: 0.95rem; font-weight: 700; }
+    .nav-back { margin-left: auto; color: rgba(255,255,255,0.65); font-size: 0.82rem; text-decoration: none; padding: 6px 12px; border-radius: 7px; border: 1px solid rgba(255,255,255,0.15); }
+    .nav-back:hover { background: rgba(255,255,255,0.1); color: white; }
+
+    main { max-width: 1100px; margin: 0 auto; padding: 32px 24px 64px; }
+
+    .company-hero {
+      background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 28px 32px; margin-bottom: 20px;
+      display: flex; align-items: center; gap: 20px;
+    }
+    .company-logo {
+      width: 56px; height: 56px; background: var(--blue); border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 20px; color: white; flex-shrink: 0;
+    }
+    .company-hero h1 { font-size: 1.5rem; font-weight: 800; margin-bottom: 4px; }
+    .company-hero p  { font-size: 0.875rem; color: var(--muted); }
+
+    .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 20px; }
+    @media (max-width: 600px) { .stats-row { grid-template-columns: 1fr; } }
+
+    .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 22px; }
+    .stat-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; margin-bottom: 8px; }
+    .stat-value { font-size: 1.8rem; font-weight: 800; }
+
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 20px; }
+    @media (max-width: 768px) { .two-col { grid-template-columns: 1fr; } }
+
+    .chart-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px 24px; }
+    .chart-title { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; margin-bottom: 16px; }
+
+    .articles-section { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+    .articles-head { padding: 16px 22px; border-bottom: 1px solid var(--border); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
+
+    .ar { padding: 16px 22px; border-bottom: 1px solid var(--border); }
+    .ar:last-child { border-bottom: none; }
+    .ar-top { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 8px; }
+    .ar-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+    .ar-dot.positive { background: var(--green); }
+    .ar-dot.negative { background: var(--red); }
+    .ar-dot.neutral  { background: var(--muted); }
+    .ar-title { font-size: 0.9rem; font-weight: 600; color: var(--text); text-decoration: none; line-height: 1.45; }
+    .ar-title:hover { color: var(--blue); }
+    .ar-summary { font-size: 0.845rem; color: #475569; line-height: 1.65; margin-bottom: 7px; }
+    .ar-meta { display: flex; align-items: center; gap: 8px; font-size: 0.75rem; color: var(--muted); flex-wrap: wrap; }
+    .rel-chip { padding: 2px 9px; border-radius: 12px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; }
+    .rel-chip.high   { background: #dbeafe; color: #1d4ed8; }
+    .rel-chip.medium { background: #fffbeb; color: #d97706; }
+    .rel-chip.low    { background: #f1f5f9; color: var(--muted); }
+    .date-chip { background: #f1f5f9; color: var(--muted); padding: 2px 8px; border-radius: 10px; font-size: 0.7rem; font-weight: 600; }
+
+    .empty-msg { text-align: center; padding: 60px 20px; color: var(--muted); font-size: 0.9rem; }
+
+    footer { text-align: center; padding: 24px; font-size: 0.78rem; color: var(--muted); border-top: 1px solid var(--border); margin-top: 40px; }
+  </style>
+</head>
+<body>
+  <nav>
+    <div class="nav-logo">NO</div>
+    <span class="nav-title">Norwegian Oil Intelligence</span>
+    <a href="/" class="nav-back">← Dashboard</a>
+  </nav>
+
+  <main>
+    <div class="company-hero">
+      <div class="company-logo">{{ company_name[:2].upper() }}</div>
+      <div>
+        <h1>{{ company_name }}</h1>
+        <p>{{ articles|length }} articles found across stored reports</p>
+      </div>
+    </div>
+
+    {% set pos_count  = articles | selectattr('sentiment','equalto','positive') | list | length %}
+    {% set neg_count  = articles | selectattr('sentiment','equalto','negative') | list | length %}
+    {% set high_count = articles | selectattr('equinor_relevance','equalto','high') | list | length %}
+
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-label">Total Mentions</div>
+        <div class="stat-value">{{ articles|length }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Positive / Negative</div>
+        <div class="stat-value" style="color:{% if pos_count > neg_count %}#059669{% elif neg_count > pos_count %}#dc2626{% else %}#64748b{% endif %}">
+          {{ pos_count }} / {{ neg_count }}
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">High Relevance</div>
+        <div class="stat-value" style="color:#2563eb">{{ high_count }}</div>
+      </div>
+    </div>
+
+    {% if sentiment_trend|length >= 2 %}
+    <div class="two-col">
+      <div class="chart-card">
+        <div class="chart-title">Weekly Article Volume</div>
+        <div style="height:160px"><canvas id="volChart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Sentiment per Week</div>
+        <div style="height:160px"><canvas id="sentChart"></canvas></div>
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="articles-section">
+      <div class="articles-head">
+        <span>Articles mentioning {{ company_name }}</span>
+        <span>{{ articles|length }} total</span>
+      </div>
+      {% if articles %}
+        {% for a in articles %}
+        <div class="ar">
+          <div class="ar-top">
+            <span class="ar-dot {{ a.sentiment }}"></span>
+            <a class="ar-title" href="{{ a.url }}" target="_blank" rel="noopener">{{ a.title }}</a>
+          </div>
+          <p class="ar-summary">{{ a.summary or a.description or '' }}</p>
+          <div class="ar-meta">
+            <span class="rel-chip {{ a.equinor_relevance }}">{{ a.equinor_relevance | upper }}</span>
+            <span>{{ a.source }}</span>
+            <span class="date-chip">{{ a.report_date }}</span>
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="empty-msg">No articles found mentioning {{ company_name }} in stored reports.</div>
+      {% endif %}
+    </div>
+  </main>
+
+  <footer>Norwegian Oil Intelligence — Powered by Claude AI + NewsAPI</footer>
+
+  {% if sentiment_trend|length >= 2 %}
+  <script>
+    const trend = {{ sentiment_trend | tojson }};
+    const labels = trend.map(d => d.date.slice(5));
+
+    new Chart(document.getElementById('volChart'), {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Articles',
+          data: trend.map(d => d.total),
+          backgroundColor: '#2563eb',
+          borderRadius: 5,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { display: false }, ticks: { font: { family: 'Inter', size: 10 }, color: '#64748b' }, border: { display: false } },
+          y: { grid: { color: '#f1f5f9' }, ticks: { font: { family: 'Inter', size: 10 }, color: '#64748b', stepSize: 1 }, border: { display: false } },
+        }
+      }
+    });
+
+    new Chart(document.getElementById('sentChart'), {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          { label: 'Positive', data: trend.map(d => d.positive), backgroundColor: '#059669', borderRadius: 4 },
+          { label: 'Neutral',  data: trend.map(d => d.neutral),  backgroundColor: '#94a3b8', borderRadius: 4 },
+          { label: 'Negative', data: trend.map(d => d.negative), backgroundColor: '#dc2626', borderRadius: 4 },
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { labels: { font: { family: 'Inter', size: 10 }, color: '#64748b', boxWidth: 10 } } },
+        scales: {
+          x: { stacked: true, grid: { display: false }, ticks: { font: { family: 'Inter', size: 10 }, color: '#64748b' }, border: { display: false } },
+          y: { stacked: true, grid: { color: '#f1f5f9' }, ticks: { font: { family: 'Inter', size: 10 }, color: '#64748b', stepSize: 1 }, border: { display: false } },
+        }
+      }
+    });
+  </script>
+  {% endif %}
+</body>
+</html>

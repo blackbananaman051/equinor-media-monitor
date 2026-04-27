@@ -34,3 +34,24 @@ def get_key(name):
 
 def is_configured():
     return bool(get_key("ANTHROPIC_API_KEY") and get_key("NEWS_API_KEY"))
+
+
+def get_email_config():
+    return load_config().get("email", {})
+
+
+def save_email_config(data):
+    cfg = load_config()
+    existing = cfg.get("email", {})
+    existing.update(data)
+    save_config({"email": existing})
+
+
+def get_alert_config():
+    from alerts import get_alert_config as _get
+    return _get()
+
+
+def save_alert_config(data):
+    from alerts import save_alert_config as _save
+    _save(data)
