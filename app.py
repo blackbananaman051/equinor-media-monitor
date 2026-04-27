@@ -95,9 +95,23 @@ def save_config_route():
 @app.route("/analyze", methods=["POST"])
 @require_admin
 def analyze():
-    missing = [k for k in ("ANTHROPIC_API_KEY", "NEWS_API_KEY") if not os.getenv(k)]
-    if missing:
+    # Allow callers to supply their own API keys in request headers.
+    # This lets anyone use a shared/hosted deployment with their own keys.
+    req_anthropic = request.headers.get("X-Anthropic-Key", "").strip()
+    req_news      = request.headers.get("X-News-Key", "").strip()
+
+    anthropic_key = req_anthropic or os.getenv("ANTHROPIC_API_KEY", "")
+    news_key      = req_news      or os.getenv("NEWS_API_KEY", "")
+
+    if not anthropic_key or not news_key:
+        missing = []
+        if not anthropic_key: missing.append("ANTHROPIC_API_KEY")
+        if not news_key:      missing.append("NEWS_API_KEY")
         return jsonify({"error": f"Missing API keys: {', '.join(missing)}."}), 400
+
+    # Inject into env for this request so fetcher/analyzer pick them up
+    os.environ["ANTHROPIC_API_KEY"] = anthropic_key
+    os.environ["NEWS_API_KEY"]      = news_key
 
     try:
         print("Fetching articles...")
@@ -131,6 +145,18 @@ def latest_report():
     return jsonify(report)
 
 
+def find_free_port(start=5000):
+    import socket
+    for port in range(start, start + 20):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            try:
+                s.bind(("127.0.0.1", port))
+                return port
+            except OSError:
+                continue
+    return start
+
+
 def open_browser(port):
     time.sleep(1.5)
     webbrowser.open(f"http://localhost:{port}")
@@ -138,7 +164,7 @@ def open_browser(port):
 
 if __name__ == "__main__":
     start_scheduler()
-    port = int(os.getenv("PORT", 5000))
+    port = find_free_port(int(os.getenv("PORT", 5000)))
     debug = os.getenv("FLASK_DEBUG", "false").lower() == "true"
 
     if not debug:
