@@ -9,13 +9,13 @@ load_dotenv()
 MODEL = "claude-opus-4-5"
 
 SYSTEM_PROMPT = (
-    "You are an intelligence analyst covering the Norwegian oil and gas industry. "
-    "Your job is to monitor global energy news weekly and produce a clear, concise briefing "
-    "about what matters for Norway's oil and gas sector. This includes companies like Equinor, "
-    "Aker BP, Vår Energi, TotalEnergies Norway, and the Norwegian government's petroleum policy. "
-    "Consider how news affects oil prices, production on the Norwegian continental shelf, "
-    "the Norwegian Oil Fund (Government Pension Fund), energy transition strategy, and "
-    "regulatory developments from the Norwegian Petroleum Directorate. "
+    "You are a senior intelligence analyst working directly for Equinor ASA, the Norwegian state-owned energy company. "
+    "Your sole focus is protecting and advancing Equinor's strategic interests. "
+    "You monitor global energy, geopolitical, and financial news and assess every development through a single lens: "
+    "what does this mean for Equinor specifically — its share price, production assets on the Norwegian Continental Shelf, "
+    "international upstream portfolio (US, Brazil, UK, Tanzania, Argentina), offshore wind projects (Empire Wind, Hywind, Dogger Bank), "
+    "LNG exports, hydrogen strategy, carbon capture projects, and its relationship with the Norwegian government and Petroleum Directorate. "
+    "Risks and opportunities must be framed in terms of direct Equinor exposure. "
     "Respond only with valid JSON."
 )
 
@@ -28,12 +28,12 @@ def get_client():
 
 
 def analyze_article(client, article, _retry=True):
-    prompt = f"""Analyze this news article and return a JSON object with these fields:
-- summary: 2-3 sentence summary in Norwegian
-- sentiment: "positive", "negative", or "neutral"
-- norway_relevance: "high", "medium", or "low" (how relevant is this to the Norwegian oil industry)
-- relevance_reason: why this matters to Norway's oil and gas sector specifically
-- tags: list of 3 relevant tags
+    prompt = f"""Analyze this news article from Equinor's perspective and return a JSON object with these fields:
+- summary: 2-3 sentence summary in Norwegian focusing on the Equinor angle
+- sentiment: "positive", "negative", or "neutral" — for Equinor specifically
+- norway_relevance: "high", "medium", or "low" — how directly this affects Equinor's business, assets, or strategy
+- relevance_reason: one sentence explaining the specific Equinor exposure (mention affected assets, business units, or financials if relevant)
+- tags: list of 3 relevant tags (e.g. "NCS production", "offshore wind", "oil price", "Equinor shares", "LNG exports")
 
 Article title: {article['title']}
 Source: {article['source']}
@@ -91,18 +91,18 @@ def synthesize_briefing(client, analyzed_articles):
         for i, a in enumerate(analyzed_articles)
     )
 
-    prompt = f"""Based on these {len(analyzed_articles)} analyzed news articles about the Norwegian oil and gas industry,
-produce a comprehensive weekly intelligence briefing. Return a JSON object with these fields:
+    prompt = f"""Based on these {len(analyzed_articles)} analyzed news articles, produce a weekly Equinor intelligence briefing.
+Return a JSON object with these fields:
 - date: today's date in YYYY-MM-DD format
-- headline: one-sentence summary of the most important development for Norwegian oil today
-- situation_summary: 3-4 sentence overview of what happened in Norwegian and global oil & energy markets
-- equinor_impact: 2-3 sentences about what today's news means for Norway's oil sector (Equinor, Aker BP, Vår Energi, oil fund)
-- top_risk: the single biggest risk for the Norwegian oil industry today
-- top_opportunity: the single biggest opportunity for the Norwegian oil industry today
-- market_sentiment: "positive", "negative", or "neutral"
+- headline: one sentence — the single most important development for Equinor this week
+- situation_summary: 3-4 sentences covering global energy market conditions and their direct relevance to Equinor's operations and strategy
+- equinor_impact: 2-3 sentences specifically about the impact on Equinor — reference actual Equinor assets, business lines, or financials where possible (NCS fields, Empire Wind, Hywind, LNG, EQNR share price, oil fund exposure)
+- top_risk: the single biggest near-term risk for Equinor specifically (not the industry in general)
+- top_opportunity: the single biggest strategic opportunity Equinor should capitalize on
+- market_sentiment: "positive", "negative", or "neutral" — for Equinor's outlook
 - oil_price_trend: "rising", "falling", or "stable"
-- key_themes: list of 3-5 key themes from today's news
-- recommended_actions: list of 2-4 strategic observations or actions relevant to Norwegian oil stakeholders
+- key_themes: list of 3-5 key themes directly relevant to Equinor this week
+- recommended_actions: list of 2-4 concrete strategic observations or action points for Equinor leadership
 
 Articles analyzed:
 {summaries_text}
