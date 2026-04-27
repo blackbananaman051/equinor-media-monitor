@@ -1,5 +1,6 @@
 import os
 import requests
+import feedparser
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
@@ -8,6 +9,53 @@ load_dotenv()
 NEWS_API_BASE = "https://newsapi.org/v2/everything"
 MAX_ARTICLES  = 50
 PAGE_SIZE     = 15
+
+RSS_FEEDS = [
+    "https://oilprice.com/rss/main",
+    "https://www.rigzone.com/news/rss/rigzone_latest.aspx",
+    "https://www.offshore-energy.biz/feed/",
+    "https://www.upstreamonline.com/rss",
+]
+
+OIL_KEYWORDS = [
+    "oil", "gas", "energy", "petroleum", "offshore", "equinor",
+    "brent", "opec", "lng", "drilling", "norway", "norwegian",
+]
+
+
+def fetch_rss_articles(cutoff_dt):
+    seen_titles = set()
+    articles    = []
+    for url in RSS_FEEDS:
+        try:
+            feed = feedparser.parse(url)
+            for entry in feed.entries[:20]:
+                title = (entry.get("title") or "").strip()
+                if not title or title in seen_titles:
+                    continue
+                summary = entry.get("summary") or entry.get("description") or ""
+                text    = (title + " " + summary).lower()
+                if not any(kw in text for kw in OIL_KEYWORDS):
+                    continue
+                # Date filter — skip entries older than cutoff
+                published = entry.get("published_parsed")
+                if published:
+                    from calendar import timegm
+                    pub_dt = datetime.utcfromtimestamp(timegm(published))
+                    if pub_dt < cutoff_dt:
+                        continue
+                seen_titles.add(title)
+                articles.append({
+                    "title":       title,
+                    "description": summary[:300],
+                    "url":         entry.get("link", ""),
+                    "source":      feed.feed.get("title", url),
+                    "publishedAt": entry.get("published", ""),
+                    "content":     summary[:500],
+                })
+        except Exception:
+            continue
+    return articles
 
 SEARCH_QUERIES = [
     "Norway oil gas industry",
@@ -33,11 +81,21 @@ def fetch_articles():
     if not NEWS_API_KEY:
         raise ValueError("NEWS_API_KEY is not set. Please add it via the setup screen.")
 
-    seen_urls   = set()
+    cutoff    = datetime.utcnow() - timedelta(days=7)
+    seen_urls = set()
     seen_titles = set()
     articles    = []
     last_api_error = None
-    from_date = (datetime.utcnow() - timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    from_date = cutoff.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    # Pull RSS articles first (free, no rate-limit)
+    rss_articles = fetch_rss_articles(cutoff)
+    for a in rss_articles:
+        if a["title"] not in seen_titles and (not a["url"] or a["url"] not in seen_urls):
+            seen_titles.add(a["title"])
+            if a["url"]:
+                seen_urls.add(a["url"])
+            articles.append(a)
 
     for query in SEARCH_QUERIES:
         if len(articles) >= MAX_ARTICLES:

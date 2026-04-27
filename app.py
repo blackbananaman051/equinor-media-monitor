@@ -33,7 +33,7 @@ for _key in ("ANTHROPIC_API_KEY", "NEWS_API_KEY"):
         os.environ[_key] = _val
 
 from fetcher import fetch_articles
-from analyzer import run_full_analysis, analyze_article, synthesize_briefing, get_client as get_analyzer_client
+from analyzer import run_full_analysis, analyze_article, synthesize_briefing, get_client as get_analyzer_client, compare_reports
 from reporter import save_report, load_report, load_latest_report, list_report_dates, get_trend_data
 from scheduler import start_scheduler
 
@@ -197,6 +197,21 @@ def analyze_stream():
             )
             save_report(briefing)
 
+            # Week-over-week comparison
+            try:
+                all_dates = list_report_dates()
+                if len(all_dates) >= 2:
+                    prev = load_report(all_dates[1])
+                    if prev:
+                        yield evt({"status": "comparing", "message": "Generating week-over-week analysis..."})
+                        diff = compare_reports(client, briefing, prev)
+                        if diff:
+                            briefing["week_over_week"] = diff
+                            briefing["prev_date"]      = all_dates[1]
+                            save_report(briefing)
+            except Exception:
+                pass
+
             yield evt({"status": "done", "report": briefing})
 
         except Exception as e:
@@ -278,6 +293,57 @@ COMPANY_SLUGS = {
     "lundin":        ("Lundin",         ["lundin"]),
     "totalenergies": ("TotalEnergies",  ["totalenergies", "total norway"]),
 }
+
+
+@app.route("/search")
+def search():
+    q = request.args.get("q", "").strip().lower()
+    if len(q) < 2:
+        return jsonify({"results": [], "query": q})
+
+    results  = []
+    seen     = set()
+
+    for date in list_report_dates()[:24]:
+        report = load_report(date)
+        if not report:
+            continue
+
+        # Search inside articles
+        for a in report.get("articles", []):
+            text = (a.get("title","") + " " + a.get("summary","") + " " + a.get("description","")).lower()
+            if q in text and a.get("title") not in seen:
+                seen.add(a.get("title",""))
+                results.append({
+                    "type":       "article",
+                    "title":      a.get("title",""),
+                    "url":        a.get("url",""),
+                    "summary":    (a.get("summary") or a.get("description") or "")[:180],
+                    "source":     a.get("source",""),
+                    "sentiment":  a.get("sentiment","neutral"),
+                    "relevance":  a.get("equinor_relevance","low"),
+                    "date":       date,
+                })
+
+        # Search in briefing fields
+        briefing_text = " ".join(filter(None, [
+            report.get("headline"), report.get("situation_summary"),
+            report.get("top_risk"), report.get("top_opportunity"),
+        ])).lower()
+        key = f"brief:{date}"
+        if q in briefing_text and key not in seen:
+            seen.add(key)
+            results.append({
+                "type":    "briefing",
+                "title":   report.get("headline","Weekly brief")[:90],
+                "url":     f"/?date={date}",
+                "summary": report.get("situation_summary","")[:180],
+                "source":  "Intelligence Brief",
+                "date":    date,
+            })
+
+    results.sort(key=lambda r: r["date"], reverse=True)
+    return jsonify({"results": results[:40], "query": q})
 
 
 @app.route("/company/<slug>")

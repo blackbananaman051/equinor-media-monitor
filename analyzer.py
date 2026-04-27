@@ -27,7 +27,7 @@ def get_client():
     return anthropic.Anthropic(api_key=api_key)
 
 
-def analyze_article(client, article):
+def analyze_article(client, article, _retry=True):
     prompt = f"""Analyze this news article and return a JSON object with these fields:
 - summary: 2-3 sentence summary in Norwegian
 - sentiment: "positive", "negative", or "neutral"
@@ -56,17 +56,28 @@ Return only valid JSON, no other text."""
             if raw.startswith("json"):
                 raw = raw[4:]
         result = json.loads(raw)
-        # Map norway_relevance to equinor_relevance for template compatibility
         if "norway_relevance" in result and "equinor_relevance" not in result:
             result["equinor_relevance"] = result["norway_relevance"]
         return result
-    except (json.JSONDecodeError, anthropic.APIError) as e:
+    except json.JSONDecodeError:
+        if _retry:
+            import time as _t; _t.sleep(2)
+            return analyze_article(client, article, _retry=False)
         return {
             "summary": article.get("description", "No summary available."),
             "sentiment": "neutral",
             "norway_relevance": "low",
             "equinor_relevance": "low",
-            "relevance_reason": f"Analysis failed: {str(e)}",
+            "relevance_reason": "JSON parse failed after retry.",
+            "tags": [],
+        }
+    except anthropic.APIError as e:
+        return {
+            "summary": article.get("description", "No summary available."),
+            "sentiment": "neutral",
+            "norway_relevance": "low",
+            "equinor_relevance": "low",
+            "relevance_reason": f"API error: {str(e)}",
             "tags": [],
         }
 
@@ -124,6 +135,49 @@ Return only valid JSON, no other text."""
             "key_themes": [],
             "recommended_actions": [],
         }
+
+
+def compare_reports(client, current, previous):
+    prompt = f"""Compare these two weekly Norwegian oil industry intelligence reports and identify what changed.
+
+CURRENT ({current['date']}):
+- Headline: {current.get('headline','')}
+- Sentiment: {current.get('market_sentiment','')}
+- Oil trend: {current.get('oil_price_trend','')}
+- Top risk: {current.get('top_risk','')}
+- Top opportunity: {current.get('top_opportunity','')}
+- Key themes: {', '.join(current.get('key_themes',[]))}
+
+PREVIOUS ({previous['date']}):
+- Headline: {previous.get('headline','')}
+- Sentiment: {previous.get('market_sentiment','')}
+- Oil trend: {previous.get('oil_price_trend','')}
+- Top risk: {previous.get('top_risk','')}
+- Top opportunity: {previous.get('top_opportunity','')}
+- Key themes: {', '.join(previous.get('key_themes',[]))}
+
+Return a JSON object with:
+- sentiment_shift: e.g. "Neutral → Negative" or "Stable — no change"
+- key_changes: list of 3-4 most important changes since last week
+- new_themes: list of themes that are new this week
+- resolved_themes: list of themes from last week that disappeared
+- outlook: one forward-looking sentence based on the change
+
+Return only valid JSON."""
+
+    try:
+        msg = client.messages.create(
+            model=MODEL, max_tokens=600, system=SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = msg.content[0].text.strip()
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+        return json.loads(raw)
+    except Exception:
+        return None
 
 
 def run_full_analysis(articles):
