@@ -2,6 +2,10 @@
 
 A local web app that aggregates Norwegian oil & energy news from multiple sources, analyzes each article with Claude AI, and produces a structured weekly intelligence briefing. Runs entirely on your own machine.
 
+The website you can use to run the program is:
+
+https://norskenergianalyse-com.onrender.com/
+
 ---
 
 ## Features
